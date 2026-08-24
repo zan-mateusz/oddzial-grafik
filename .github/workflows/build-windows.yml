@@ -5,6 +5,12 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+# Utworzenie wydania wymaga prawa zapisu. Nowe repozytoria mają domyślnie
+# token tylko do odczytu, więc bez tego krok publikujący wydanie kończy się
+# błędem 403.
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
