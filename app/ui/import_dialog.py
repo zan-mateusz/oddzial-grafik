@@ -164,13 +164,15 @@ class ImportDialog(QDialog):
             filt = "Obrazy (*.png *.jpg *.jpeg *.tif *.tiff *.bmp)"
         else:
             caption = "Wybierz plik z grafikiem"
-            filt = "Arkusze (*.xlsx *.xlsm)"
+            filt = ("Arkusze (*.xlsx *.xlsm *.ods);;"
+                    "Excel (*.xlsx *.xlsm);;LibreOffice / OpenOffice (*.ods)")
         path, _ = QFileDialog.getOpenFileName(
             self, caption, str(config.documents_dir()), filt
         )
         if not path:
             return
-        self.lbl_file.setText(Path(path).name)
+        self.source_path = Path(path)
+        self.lbl_file.setText(self.source_path.name)
         try:
             if self.photo_mode:
                 from app.io.ocr import read_photo_grid
@@ -194,10 +196,20 @@ class ImportDialog(QDialog):
     def _days_in_target_month(self) -> int:
         return calendar.monthrange(self.spin_year.value(), self.cmb_month.currentIndex() + 1)[1]
 
+    def _apply_month_guess(self, grid) -> None:
+        """Ustawia miesiąc na podstawie nazwy arkusza (pewniejsza) lub pliku."""
+        filename = getattr(self, "source_path", None)
+        year, month = xi.guess_month(grid.name, filename.stem if filename else "")
+        if month is not None:
+            self.cmb_month.setCurrentIndex(month - 1)
+        if year is not None:
+            self.spin_year.setValue(year)
+
     def _on_sheet_changed(self) -> None:
         grid = self._current_grid()
         if grid is None:
             return
+        self._apply_month_guess(grid)
         self.layout_info = xi.detect_layout(grid, self._days_in_target_month())
         for widget, value in (
             (self.spin_header, self.layout_info.header_row + 1),

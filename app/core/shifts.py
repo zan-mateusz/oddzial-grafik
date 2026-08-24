@@ -82,7 +82,7 @@ def fmt_hours_decimal(minutes: int) -> str:
 _TIME = r"(\d{1,2})(?:[:.](\d{2}))?"
 _RANGE_RE = re.compile(rf"^\s*{_TIME}\s*[-–—]\s*{_TIME}\s*$")
 _COMPACT_RE = re.compile(r"^\s*(\d{3,4})\s*[-–—]\s*(\d{3,4})\s*$")
-_BARE_RE = re.compile(r"^\s*(\d{1,2})(?:[:.,](\d{1,2}))?\s*[hH]?\s*$")
+_DURATION_RE = re.compile(r"^\s*(\d{1,2})(?:\s*[:.,]\s*(\d{1,2}))?\s*[hH]?\s*$")
 
 
 def _mk_time(hour: int, minute: int) -> dt.time | None:
@@ -112,22 +112,36 @@ def parse_freeform(text: str) -> tuple[dt.time, dt.time] | None:
     return None
 
 
-def parse_bare_hours(text: str) -> int | None:
-    """"8" -> 480 min, "7,5" / "7:30" -> 450 min. Bez godziny rozpoczęcia."""
-    m = _BARE_RE.match(text)
+def parse_duration(text: str) -> int | None:
+    """Zamienia zapis czasu trwania dyżuru na minuty.
+
+    Przecinek, kropka i dwukropek oddzielają minuty, a nie ułamek godziny —
+    tak zapisuje się czas w grafiku prowadzonym ręcznie:
+
+        "10"    -> 10:00    (same pełne godziny)
+        "7:30"  ->  7:30
+        "7,3"   ->  7:30    (jedna cyfra to dziesiątki minut)
+        "7,35"  ->  7:35    (dwie cyfry to minuty)
+    """
+    m = _DURATION_RE.match(text)
     if not m:
         return None
     hours = int(m.group(1))
-    frac = m.group(2)
-    if frac is None:
+    digits = m.group(2)
+    if digits is None:
         minutes = 0
-    elif ":" in text or "." in text and len(frac) == 2 and int(frac) < 60:
-        minutes = int(frac)
+    elif len(digits) == 1:
+        minutes = int(digits) * 10
     else:
-        minutes = round(float(f"0.{frac}") * 60)
-    if hours > 24:
+        minutes = int(digits)
+    if hours > 24 or minutes > 59 or (hours == 24 and minutes):
         return None
     return hours * 60 + minutes
+
+
+def fmt_duration_label(minutes: int) -> str:
+    """Etykieta w komórce: pełne godziny bez końcówki ("10"), reszta jako "7:30"."""
+    return str(minutes // 60) if minutes % 60 == 0 else fmt_minutes(minutes)
 
 
 @dataclass(frozen=True)
@@ -190,13 +204,14 @@ def resolve(raw: str, types_by_code: dict[str, ShiftType]) -> Entry | None:
             end=end,
         )
 
-    bare = parse_bare_hours(text)
-    if bare is not None:
+    duration = parse_duration(text)
+    if duration is not None:
+        # Sam czas trwania, bez pory rozpoczęcia — nie wlicza się do pory nocnej.
         return Entry(
             raw=text,
-            minutes=bare,
+            minutes=duration,
             category=Category.WORK,
-            label=text,
+            label=fmt_duration_label(duration),
             color=FREEFORM_COLOR,
         )
 
@@ -211,16 +226,11 @@ def resolve(raw: str, types_by_code: dict[str, ShiftType]) -> Entry | None:
 
 
 DEFAULT_SHIFT_TYPES: tuple[ShiftType, ...] = (
-    ShiftType("D", "Dniówka", dt.time(7, 0), dt.time(19, 0), Category.WORK, "#D6E8FF"),
-    ShiftType("N", "Nocka", dt.time(19, 0), dt.time(7, 0), Category.WORK, "#D8D4F0"),
-    ShiftType("R", "Rano", dt.time(7, 0), dt.time(14, 35), Category.WORK, "#DFF3E4"),
-    ShiftType("P", "Popołudnie", dt.time(14, 0), dt.time(21, 35), Category.WORK, "#FCE4D6"),
+    ShiftType("D", "Dyżur dzienny", dt.time(7, 0), dt.time(19, 0), Category.WORK, "#D6E8FF"),
+    ShiftType("N", "Dyżur nocny", dt.time(19, 0), dt.time(7, 0), Category.WORK, "#D8D4F0"),
     ShiftType("U", "Urlop wypoczynkowy", None, None, Category.LEAVE, "#FFF2A8"),
     ShiftType("UŻ", "Urlop na żądanie", None, None, Category.LEAVE, "#FFF2A8"),
-    ShiftType("UB", "Urlop bezpłatny", None, None, Category.ABSENCE, "#EFEFEF"),
     ShiftType("L4", "Zwolnienie lekarskie", None, None, Category.SICK, "#FFD9E6"),
-    ShiftType("OP", "Opieka nad dzieckiem", None, None, Category.LEAVE, "#FFF2A8"),
-    ShiftType("W", "Wolne", None, None, Category.OFF, "#F5F5F5"),
-    ShiftType("WN", "Wolne za nadgodziny", None, None, Category.OFF, "#F5F5F5"),
-    ShiftType("SZ", "Szkolenie", None, None, Category.WORK, "#E0E0FF", minutes_override=455),
+    ShiftType("OP", "Opieka nad dzieckiem", None, None, Category.LEAVE, "#FFE7C2"),
+    ShiftType("W", "Wolne", None, None, Category.OFF, "#F0F1F3"),
 )

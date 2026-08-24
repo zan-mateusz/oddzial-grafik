@@ -49,7 +49,15 @@ class Layout:
         return self.header_row >= 0 and self.name_col >= 0 and len(self.day_cols) >= 20
 
 
+SPREADSHEET_SUFFIXES = (".xlsx", ".xlsm", ".ods")
+
+
 def read_sheets(path: str | Path) -> list[SheetGrid]:
+    """Wczytuje arkusz Excela (.xlsx) albo OpenDocument (.ods)."""
+    if Path(path).suffix.lower() == ".ods":
+        from app.io.ods_import import read_ods_sheets
+
+        return read_ods_sheets(path)
     wb = load_workbook(path, data_only=True, read_only=True)
     grids = []
     for ws in wb.worksheets:
@@ -186,13 +194,54 @@ def _detect_first_data_row(grid: SheetGrid, header_row: int, name_col: int) -> i
     return header_row + 1
 
 
+_ORDINAL_PREFIX = re.compile(r"^\s*\d{1,3}\s*[.)]\s*")
+
+
+def strip_ordinal(name: str) -> str:
+    """Usuwa numer porządkowy z początku nazwiska ("1. Kowalska" -> "Kowalska")."""
+    return _ORDINAL_PREFIX.sub("", name).strip()
+
+
 def normalize_name(name: str) -> str:
     """Do porównywania nazwisk: bez ogonków, wielkości liter i inicjałów."""
-    text = unicodedata.normalize("NFKD", name.lower())
+    text = unicodedata.normalize("NFKD", strip_ordinal(name).lower())
     text = "".join(ch for ch in text if not unicodedata.combining(ch))
     text = re.sub(r"[^a-z\s]", " ", text)
     parts = [p for p in text.split() if len(p) > 1]
     return " ".join(sorted(parts))
+
+
+# Rdzenie polskich nazw miesięcy — pasują też do form odmienionych
+# ("STYCZNIA", "MAJA"), bo dopasowanie działa na początku wyrazu.
+_MONTH_STEMS = [
+    ("stycz", 1), ("lut", 2), ("mar", 3), ("kwie", 4), ("maj", 5), ("czerw", 6),
+    ("lip", 7), ("sierp", 8), ("wrze", 9), ("pazdzier", 10), ("listopad", 11),
+    ("grud", 12),
+]
+
+
+def guess_month(*sources: str) -> tuple[int | None, int | None]:
+    """Odgaduje (rok, miesiąc) z nazwy arkusza lub pliku, np. "CZERWIEC 2026".
+
+    Nazwa arkusza jest pewniejsza niż nazwa pliku: przygotowując kolejny grafik
+    użytkownik zwykle kopiuje plik, a nazwę arkusza zmienia na bieżący miesiąc.
+    """
+    month = year = None
+    for text in sources:
+        if not text:
+            continue
+        plain = unicodedata.normalize("NFKD", text.lower())
+        plain = "".join(c for c in plain if not unicodedata.combining(c))
+        if month is None:
+            for stem, number in _MONTH_STEMS:
+                if stem in plain:
+                    month = number
+                    break
+        if year is None:
+            found = re.search(r"(20\d{2})", plain)
+            if found:
+                year = int(found.group(1))
+    return year, month
 
 
 @dataclass
@@ -218,7 +267,8 @@ def extract_rows(grid: SheetGrid, layout: Layout, max_rows: int = 60) -> list[Im
                 break
             continue
         blanks = 0
-        if _looks_like_summary(name) or _looks_like_shift_code(name):
+        name = strip_ordinal(name)
+        if not name or _looks_like_summary(name) or _looks_like_shift_code(name):
             continue
         entries = {
             day: grid.value(r, col).strip() for day, col in layout.day_cols.items()
@@ -304,7 +354,7 @@ def apply_import(
 
 
 def _split_name(text: str) -> tuple[str, str]:
-    parts = [p for p in re.split(r"[\s,]+", text.strip()) if p]
+    parts = [p for p in re.split(r"[\s,]+", strip_ordinal(text)) if p]
     if not parts:
         return text.strip(), ""
     if len(parts) == 1:

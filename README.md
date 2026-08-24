@@ -9,8 +9,12 @@ calculated automatically.
 
 ## Features
 
-- **Monthly grid** — employees down the side, days across the top. Type `D`,
-  `N`, `U`… or free-form hours (`8-14`, `7:30-19:30`, `0700-1900`, `7,5`).
+- **Monthly grid** — employees down the side, days across the top. Full shifts
+  are codes (`D`, `N`); shorter ones are typed as a plain duration (`7:30`,
+  `10`, `6:45`). Comma and dot act as the minute separator the way she already
+  writes it by hand, so `7,3` is 7 h 30 min and `7,35` is 7 h 35 min — never a
+  decimal fraction. The cell echoes back the parsed value. Hour ranges
+  (`8-14`, `19-7`) are accepted too. Days off are left blank.
 - **Any month, past or future** — every month is kept; navigate freely.
 - **Automatic totals** — hours worked, statutory monthly norm (art. 130 K.p.,
   7 h 35 min/day for medical staff), overtime balance, night hours
@@ -23,8 +27,11 @@ calculated automatically.
 - **Shift types** — fully editable: code, name, hours, category, colour.
 - **Excel export** — formatted, colour-coded, print-ready A4 landscape with a
   legend and frozen header. Opens in Excel and LibreOffice.
-- **Excel import** — auto-detects table layout, maps names to existing
-  employees, preview before writing.
+- **Spreadsheet import** — reads `.xlsx` and `.ods` (LibreOffice/OpenOffice).
+  Auto-detects the table layout, infers the month from the sheet name, strips
+  ordinal prefixes from names (`1. Kowalska`), skips section headers and empty
+  roster slots, and maps names to existing employees — all previewed before
+  anything is written.
 - **Photo import (optional)** — OCR of a photographed rota via Tesseract.
   Best-effort; always reviewed in the import preview before saving.
 - **Backups** — one-click snapshot and restore.

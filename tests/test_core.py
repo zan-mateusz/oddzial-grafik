@@ -7,8 +7,8 @@ from app.core.calendar_pl import (
     NORM_MEDICAL_MINUTES, NORM_STANDARD_MINUTES,
 )
 from app.core.shifts import (
-    DEFAULT_SHIFT_TYPES, fmt_minutes, parse_bare_hours, parse_freeform,
-    resolve, span_minutes,
+    DEFAULT_SHIFT_TYPES, fmt_duration_label, fmt_minutes, parse_duration,
+    parse_freeform, resolve, span_minutes,
 )
 from app.core.stats import night_minutes, summarize_month
 
@@ -86,10 +86,39 @@ def test_freeform_rejects_nonsense(text):
 
 
 @pytest.mark.parametrize("text,minutes", [
-    ("8", 480), ("7:30", 450), ("7,5", 450), ("12", 720),
+    ("8", 480), ("10", 600), ("12", 720),          # same pełne godziny
+    ("7:30", 450), ("7.30", 450),                  # zapis zegarowy
+    ("7,3", 450), ("7.3", 450),                    # jedna cyfra = dziesiątki minut
+    ("7,35", 455), ("6,45", 405),                  # dwie cyfry = minuty
+    ("7,5", 470),                                  # 7:50, a nie 7,5 godziny
 ])
-def test_bare_hours(text, minutes):
-    assert parse_bare_hours(text) == minutes
+def test_duration_uses_minutes_not_decimal_fractions(text, minutes):
+    """W grafiku przecinek oddziela minuty — "7,3" to 7 godz. 30 min."""
+    assert parse_duration(text) == minutes
+
+
+@pytest.mark.parametrize("text", ["25", "7,70", "7,99", "abc", "", "-3"])
+def test_duration_rejects_impossible_values(text):
+    assert parse_duration(text) is None
+
+
+@pytest.mark.parametrize("minutes,label", [
+    (600, "10"), (720, "12"), (450, "7:30"), (455, "7:35"),
+])
+def test_duration_label_is_normalised_for_the_grid(minutes, label):
+    """Komórka pokazuje odczytaną wartość, żeby było widać, co program zrozumiał."""
+    assert fmt_duration_label(minutes) == label
+
+
+def test_typed_duration_is_displayed_normalised():
+    assert resolve("7,3", TYPES).label == "7:30"
+    assert resolve("10", TYPES).label == "10"
+
+
+def test_duration_without_start_time_has_no_night_hours():
+    """Sam czas trwania nie mówi, o której zaczyna się dyżur."""
+    entry = resolve("10", TYPES)
+    assert entry.start is None and entry.end is None
 
 
 def test_resolve_shift_code_is_case_insensitive():

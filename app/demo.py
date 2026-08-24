@@ -40,8 +40,8 @@ def seed_demo(db, year: int, month: int, seed: int = 7) -> None:
             if code:
                 items.append((emp["id"], day, code))
             elif rng.random() < 0.08:
-                # Sporadyczne dyżury częściowe, żeby pokazać wpisy godzinowe.
-                items.append((emp["id"], day, rng.choice(["8-14", "7-15", "R", "P"])))
+                # Sporadyczne dyżury częściowe zapisane samym czasem trwania.
+                items.append((emp["id"], day, rng.choice(["7,3", "10", "8", "7,35"])))
 
     # Urlop dla dwóch osób i zwolnienie dla jednej.
     if len(employees) >= 3:

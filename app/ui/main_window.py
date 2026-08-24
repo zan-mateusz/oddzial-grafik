@@ -20,19 +20,31 @@ from app.ui.shift_types_view import ShiftTypesView
 ABOUT = """
 <h3>Grafik dyżurów</h3>
 <p>Program do układania miesięcznych grafików pracy na oddziale.</p>
-<p><b>Jak wpisywać dyżury</b><br>
-Kliknij komórkę i wpisz kod zmiany (np. <b>D</b>, <b>N</b>, <b>U</b>) albo godziny
-w dowolnej postaci: <b>8-14</b>, <b>7:30-19:30</b>, <b>0700-1900</b>.
-Możesz też wpisać samą liczbę godzin, np. <b>7,5</b>.</p>
+
+<p><b>Dyżury całodobowe</b><br>
+Wpisz <b>D</b> (dzienny, 7:00–19:00) albo <b>N</b> (nocny, 19:00–7:00).</p>
+
+<p><b>Dyżury krótsze</b><br>
+Wpisz sam czas trwania — <b>7:30</b>, <b>10</b>, <b>6:45</b>. Przecinek i kropka
+działają tak samo jak dwukropek, więc <b>7,3</b> również znaczy 7 godzin
+30 minut, a <b>7,35</b> — 7 godzin 35 minut. Program zapisuje odczytaną wartość
+w komórce, więc od razu widać, czy zrozumiał tak, jak trzeba.</p>
+
+<p><b>Nieobecności</b><br>
+<b>U</b> — urlop, <b>L4</b> — zwolnienie lekarskie, <b>OP</b> — opieka.
+Dzień wolny zostaw pusty.</p>
+
 <p><b>Szybkie wypełnianie</b><br>
 Zaznacz kilka komórek myszką i kliknij przycisk zmiany nad tabelą — albo
 kliknij zaznaczenie prawym przyciskiem. Klawisz <b>Delete</b> czyści zaznaczenie.</p>
+
 <p><b>Kolory dni</b><br>
 Soboty i niedziele mają niebieskie nagłówki, święta ustawowe — różowe.
-Dyżury w te dni są normalnie planowane i liczone.</p>
-<p>Dane zapisują się automatycznie po każdej zmianie.</p>
-"""
+Dyżury w te dni planuje się normalnie.</p>
 
+<p>Wpis, którego program nie rozpoznał, jest <b>czerwony</b> — te godziny nie są
+liczone, więc sprawdź pisownię. Dane zapisują się automatycznie.</p>
+"""
 
 class MainWindow(QMainWindow):
     def __init__(self, db):

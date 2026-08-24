@@ -13,17 +13,38 @@ i sprawdź dobową normę czasu pracy — dla pielęgniarek jest to 7 godz. 35 m
 
 ## Wpisywanie dyżurów
 
-Kliknij komórkę i pisz. Program rozumie:
+Kliknij komórkę i pisz.
+
+**Dyżury całodobowe** — wpisz kod:
 
 | Wpis | Znaczenie |
 |---|---|
 | `D` | dyżur dzienny 7:00–19:00 |
 | `N` | dyżur nocny 19:00–7:00 |
+
+**Dyżury krótsze** — wpisz sam czas trwania:
+
+| Wpis | Znaczenie |
+|---|---|
+| `7:30` | 7 godzin 30 minut |
+| `7,3` | to samo — przecinek działa jak dwukropek |
+| `7,35` | 7 godzin 35 minut |
+| `10` | 10 godzin |
+| `6:45` | 6 godzin 45 minut |
+
+Program wpisuje z powrotem odczytaną wartość — piszesz `7,3`, a w komórce
+pojawia się `7:30`. Dzięki temu od razu widać, czy zrozumiał tak, jak trzeba.
+
+**Nieobecności:**
+
+| Wpis | Znaczenie |
+|---|---|
 | `U` | urlop wypoczynkowy |
+| `UŻ` | urlop na żądanie |
 | `L4` | zwolnienie lekarskie |
-| `8-14` | dyżur od 8:00 do 14:00 (6 godzin) |
-| `7:30-19:30` | dyżur z dokładnością do minut |
-| `7,5` | sama liczba godzin, bez podawania pory |
+| `OP` | opieka nad dzieckiem |
+
+**Dzień wolny zostaw pusty** — tak jak w dotychczasowym arkuszu.
 
 Wielkość liter nie ma znaczenia — `d` znaczy to samo co `D`.
 

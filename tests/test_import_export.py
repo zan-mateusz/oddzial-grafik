@@ -7,6 +7,7 @@ import pytest
 from app.db import Database
 from app.demo import seed_demo
 from app.io import xlsx_import as xi
+from app.core.shifts import resolve
 from app.io.xlsx_export import export_month
 
 
@@ -55,7 +56,18 @@ def test_roundtrip_preserves_every_entry(seeded, tmp_path):
     names_b = {e["id"]: e["last_name"] for e in target.employees()}
     a = {(names_a[k[0]], k[1]): v for k, v in original.items()}
     b = {(names_b[k[0]], k[1]): v for k, v in target.month_entries(2026, 9).items()}
-    assert a == b
+
+    # Eksport zapisuje czas w postaci znormalizowanej ("7,3" -> "7:30"), więc
+    # porównujemy znaczenie wpisów, a nie dosłowną treść komórek.
+    types = seeded.shift_types_by_code()
+    assert a.keys() == b.keys()
+    for key, raw in a.items():
+        before, after = resolve(raw, types), resolve(b[key], types)
+        assert (before.minutes, before.category) == (after.minutes, after.category), key
+
+    # Kody zmian muszą przechodzić przez eksport i import bez żadnej zmiany.
+    codes = {k: v for k, v in a.items() if v in types}
+    assert codes and all(b[k] == v for k, v in codes.items())
     target.close()
 
 

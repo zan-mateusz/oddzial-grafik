@@ -6,3 +6,6 @@ dist/
 *.spec
 .DS_Store
 grafik.db
+
+# Prawdziwe grafiki zawierają nazwiska pracowników — nie trafiają do repozytorium.
+samples/

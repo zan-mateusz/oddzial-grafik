@@ -181,8 +181,10 @@ class ShiftTypesView(QWidget):
         root.addWidget(self.table)
 
         hint = QLabel(
-            "Kody wpisujesz wprost w grafiku. Poza nimi możesz wpisać dowolne godziny, "
-            "np. <b>8-14</b>, <b>7:30-19:30</b> albo samą liczbę godzin, np. <b>7,5</b>."
+            "Kody wpisujesz wprost w grafiku. Krótszy dyżur zapisz samym czasem "
+            "trwania: <b>7:30</b>, <b>10</b>, <b>6:45</b> — przecinek działa jak "
+            "dwukropek, więc <b>7,3</b> to 7 godz. 30 min. Można też podać "
+            "przedział godzin, np. <b>8-14</b>."
         )
         hint.setTextFormat(Qt.TextFormat.RichText)
         hint.setWordWrap(True)
