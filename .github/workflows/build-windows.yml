@@ -1,0 +1,70 @@
+name: Build Windows
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest tests -q
+
+      - name: Build with PyInstaller
+        run: pyinstaller grafik.spec --noconfirm --clean
+
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          ref="${GITHUB_REF#refs/tags/v}"
+          if [ "$ref" = "$GITHUB_REF" ]; then ref="0.0.0-dev"; fi
+          echo "value=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure Inno Setup is available
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            Write-Host "Inno Setup nie jest zainstalowany na obrazie — instaluję."
+            choco install innosetup --no-progress -y
+          }
+
+      - name: Build installer
+        run: >
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          /DAppVersion=${{ steps.version.outputs.value }}
+          packaging\grafik.iss
+
+      - name: Package portable version
+        shell: pwsh
+        run: Compress-Archive -Path dist\Grafik\* -DestinationPath dist\Grafik-portable.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Grafik-Windows
+          path: |
+            dist/Grafik-Instalator-*.exe
+            dist/Grafik-portable.zip
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/Grafik-Instalator-*.exe
+            dist/Grafik-portable.zip
