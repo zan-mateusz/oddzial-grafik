@@ -193,3 +193,10 @@ def test_data_directory_is_outside_the_program_folder(tmp_path):
         or ".local" in str(data)
     assert config.db_path().parent == data
     assert config.backup_dir().parent == data
+
+
+def test_closing_twice_is_harmless(tmp_path):
+    """Program zamyka bazę i przy wyjściu, i przy przywracaniu kopii."""
+    db = Database(tmp_path / "grafik.db")
+    db.close()
+    db.close()

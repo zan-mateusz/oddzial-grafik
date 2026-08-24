@@ -115,6 +115,8 @@ class MainWindow(QMainWindow):
 
         menu_tools = self.menuBar().addMenu("&Narzędzia")
         self._add(menu_tools, "Ustawienia…", self.open_settings)
+        menu_tools.addSeparator()
+        self._add(menu_tools, "Usuń wszystkie dane…", self.reset_data)
 
         menu_help = self.menuBar().addMenu("Pomo&c")
         self._add(menu_help, "Instrukcja obsługi", self.show_manual, "F1")
@@ -317,6 +319,44 @@ class MainWindow(QMainWindow):
         if SettingsDialog(self.db, self).exec() == SettingsDialog.DialogCode.Accepted:
             self.rota_view.refresh()
             self._update_status()
+
+    def reset_data(self) -> None:
+        """Czyszczenie bazy — przydatne po testach na danych przykładowych."""
+        from app.ui.reset_dialog import ResetDialog
+
+        dialog = ResetDialog(self.db, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        scope = dialog.scope()
+        everything = scope == ResetDialog.EVERYTHING
+
+        confirm = QMessageBox.warning(
+            self, "Ostatnie ostrzeżenie",
+            ("Usunąć wszystkie dane i wrócić do stanu jak po instalacji?"
+             if everything else
+             "Usunąć wszystkie grafiki? Pracownicy i ustawienia zostaną."),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+
+        stamp = dt.datetime.now().strftime("%Y-%m-%d_%H%M%S")
+        backup = config.backup_dir() / f"przed_usunieciem_{stamp}.db"
+        self.db.conn.commit()
+        shutil.copy2(config.db_path(), backup)
+
+        self.db.reset_data(keep_employees=not everything, keep_settings=not everything)
+        self.rota_view.floor_id = (self.db.floors() or [{"id": None}])[0]["id"]
+        self._on_structure_changed()
+        self.employees_view.reload()
+        self.shift_types_view.reload()
+
+        QMessageBox.information(
+            self, "Dane usunięte",
+            f"Gotowe. Kopia sprzed usunięcia:\n{backup}\n\n"
+            "W razie potrzeby przywrócisz ją przez Plik → Przywróć z kopii.",
+        )
 
     def show_manual(self, section: str | None = None) -> None:
         """Otwiera pełną instrukcję. Okno jest jedno — kolejne wywołania

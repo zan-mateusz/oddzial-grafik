@@ -264,8 +264,13 @@ class Database:
         self.conn.commit()
 
     def close(self) -> None:
-        self.conn.commit()
-        self.conn.close()
+        """Zamyka bazę. Wywołanie na już zamkniętej nie jest błędem —
+        program zamyka ją zarówno przy wyjściu, jak i przy przywracaniu kopii."""
+        try:
+            self.conn.commit()
+            self.conn.close()
+        except sqlite3.ProgrammingError:
+            pass
 
     # --- ustawienia ---------------------------------------------------------
 
@@ -515,6 +520,40 @@ class Database:
             sql += " AND floor_id=?"
             params.append(floor_id)
         self.conn.execute(sql, params)
+        self.conn.commit()
+
+    def data_summary(self) -> dict:
+        """Ile czego jest w bazie — do pokazania przed skasowaniem."""
+        def count(sql: str) -> int:
+            return int(self.conn.execute(sql).fetchone()[0])
+
+        return {
+            "employees": count("SELECT COUNT(*) FROM employees"),
+            "entries": count("SELECT COUNT(*) FROM entries"),
+            "months": count("SELECT COUNT(DISTINCT substr(day,1,7)) FROM entries"),
+            "shift_types": count("SELECT COUNT(*) FROM shift_types"),
+            "floors": count("SELECT COUNT(*) FROM floors"),
+        }
+
+    def reset_data(self, keep_employees: bool = False,
+                   keep_settings: bool = True) -> None:
+        """Czyści dane — po testach albo przed oddaniem programu do użytku.
+
+        Kopię zapasową robi wywołujący; tutaj wykonujemy już samo usunięcie.
+        """
+        self.conn.execute("DELETE FROM entries")
+        self.conn.execute("DELETE FROM months")
+        if not keep_employees:
+            self.conn.execute("DELETE FROM employees")
+        if not keep_settings:
+            # Zostawiamy tylko wersję formatu, żeby baza nadal dała się otworzyć.
+            self.conn.execute("DELETE FROM meta WHERE key <> 'schema_version'")
+            self.conn.execute("DELETE FROM shift_types")
+            self.conn.execute("DELETE FROM floors")
+            self.seed_shift_types()
+            self.seed_floors()
+        self.conn.commit()
+        self.conn.execute("VACUUM")
         self.conn.commit()
 
     def months_with_data(self) -> list[tuple[int, int]]:

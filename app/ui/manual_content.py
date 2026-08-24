@@ -420,6 +420,14 @@ definicje zmian i ustawienia leżą w innym miejscu i pozostają nietknięte.</p
 <p>Gdyby nowa wersja musiała zmienić sposób zapisu danych, zrobi to sama,
 powiadomi Cię o tym i <b>zostawi kopię sprzed aktualizacji</b>.</p>
 
+<h3>Usunięcie danych po testach</h3>
+<p>Jeżeli program był używany do prób i trzeba zacząć od czysta, wybierz
+<b>Narzędzia → Usuń wszystkie dane</b>. Można usunąć same grafiki — zostawiając
+pracowników i ustawienia — albo wszystko, wracając do stanu jak zaraz po
+instalacji.</p>
+<p>Przed usunięciem program sam zapisze kopię zapasową, więc operację da się
+cofnąć przez <b>Plik → Przywróć z kopii</b>.</p>
+
 <h3>Wersja przenośna</h3>
 <p>Jeśli używasz wersji przenośnej (jeden plik, bez instalacji), program też
 pobierze nową wersję, ale podmienić plik trzeba samodzielnie: zamknij program
@@ -503,6 +511,11 @@ Sprawdzanie można wyłączyć w <b>Narzędzia → Ustawienia</b>.</p>
 <p>Sprawdź w <b>Narzędzia → Ustawienia</b>, czy wypełnione jest pole
 <b>Adres aktualizacji</b>. Bez niego program nie wie, skąd pobierać nowe
 wersje. Potrzebne jest też połączenie z internetem.</p>
+
+<h3>Chcę usunąć dane testowe i zacząć od nowa</h3>
+<p><b>Narzędzia → Usuń wszystkie dane</b>. Wybierz, czy skasować same grafiki,
+czy wszystko razem z pracownikami i ustawieniami. Kopia zapasowa powstanie
+automatycznie.</p>
 
 <h3>Gdzie są moje dane</h3>
 <p>Ścieżkę do pliku widać na pasku na dole okna. Kopie zapasowe leżą

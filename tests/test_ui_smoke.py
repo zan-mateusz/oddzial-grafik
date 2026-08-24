@@ -190,3 +190,18 @@ def test_settings_dialog_validates_the_update_address(qapp, db, monkeypatch):
     dialog._save()
     assert not warned
     assert db.get_setting("update_repo") == "kowalski/grafik"
+
+
+def test_reset_dialog_builds_and_reports_counts(qapp, db):
+    import datetime as dt
+
+    from app.demo import seed_demo
+    from app.ui.reset_dialog import ResetDialog
+
+    today = dt.date.today()
+    seed_demo(db, today.year, today.month)
+    dialog = ResetDialog(db)
+    assert dialog.scope() == ResetDialog.KEEP_PEOPLE     # bezpieczniejsza domyślna
+    dialog.opt_all.setChecked(True)
+    assert dialog.scope() == ResetDialog.EVERYTHING
+    dialog.close()

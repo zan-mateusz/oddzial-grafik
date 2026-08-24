@@ -106,6 +106,10 @@ Data lives in the OS application-data directory (`%APPDATA%\Grafik` on Windows,
 install starts empty — no employees, no entries, just the seven default shift
 codes. Nothing is bundled into the installer.
 
+**Narzędzia → Usuń wszystkie dane** clears the database from inside the app —
+either just the rotas, or everything back to a fresh-install state. It takes an
+automatic backup first, so it is recoverable via Plik → Przywróć z kopii.
+
 Flags for testing without touching real data:
 
 ```bash
