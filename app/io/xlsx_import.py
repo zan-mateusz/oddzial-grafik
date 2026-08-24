@@ -218,9 +218,15 @@ def strip_ordinal(name: str) -> str:
     return _ORDINAL_PREFIX.sub("", name).strip()
 
 
+# Kreślone "ł" nie rozkłada się na literę podstawową i znak diakrytyczny, więc
+# unicodedata samo sobie z nim nie poradzi — trzeba je podmienić wprost.
+_STROKE_LETTERS = str.maketrans({"ł": "l", "Ł": "L"})
+
+
 def normalize_name(name: str) -> str:
     """Do porównywania nazwisk: bez ogonków, wielkości liter i inicjałów."""
-    text = unicodedata.normalize("NFKD", strip_ordinal(name).lower())
+    text = strip_ordinal(name).lower().translate(_STROKE_LETTERS)
+    text = unicodedata.normalize("NFKD", text)
     text = "".join(ch for ch in text if not unicodedata.combining(ch))
     text = re.sub(r"[^a-z\s]", " ", text)
     parts = [p for p in text.split() if len(p) > 1]
@@ -319,7 +325,8 @@ def _looks_like_shift_code(name: str) -> bool:
 
 def normalize_token(text: str) -> str:
     """Pojedynczy wyraz bez ogonków i wielkości liter — do porównań nazwisk."""
-    plain = unicodedata.normalize("NFKD", text.strip().lower())
+    plain = text.strip().lower().translate(_STROKE_LETTERS)
+    plain = unicodedata.normalize("NFKD", plain)
     plain = "".join(ch for ch in plain if not unicodedata.combining(ch))
     return re.sub(r"[^a-z]", "", plain)
 

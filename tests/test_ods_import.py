@@ -34,9 +34,9 @@ def ward_rows():
         ["Harmonogram czasu pracy"], [], [],
         ["Nazwisko i imię", "", ""] + days,
         ["I PIĘTRO", "", ""] + [""] * 31,
-        ["1. Dejnek Agata", "", ""] + ["N", "", "", "D"] + [""] * 27,
-        ["2. Dudzińska Aneta", "", ""] + ["D", "", "U", "U"] + [""] * 27,
-        ["10.Dyszewska Małgorzata", "", ""] + ["", "D", "N", "7,3"] + [""] * 27,
+        ["1. Pierwsza Anna", "", ""] + ["N", "", "", "D"] + [""] * 27,
+        ["2. Druga Barbara", "", ""] + ["D", "", "U", "U"] + [""] * 27,
+        ["10.Trzecia Celina", "", ""] + ["", "D", "N", "7,3"] + [""] * 27,
         ["14.", "", ""] + [""] * 31,
         ["15.", "", ""] + [""] * 31,
     ]
@@ -81,7 +81,7 @@ def test_strips_ordinal_prefixes_from_names(ward_sheet):
     grid = xi.read_sheets(ward_sheet)[0]
     rows = xi.extract_rows(grid, xi.detect_layout(grid, 30))
     assert [r.source_name for r in rows] == [
-        "Dejnek Agata", "Dudzińska Aneta", "Dyszewska Małgorzata",
+        "Pierwsza Anna", "Druga Barbara", "Trzecia Celina",
     ]
 
 
@@ -143,8 +143,8 @@ def test_guess_month(sheet, filename, expected):
 def test_name_matching_ignores_ordinal_prefix(tmp_path):
     from app.db import Database
     db = Database(tmp_path / "t.db")
-    db.add_employee("Dejnek", "Agata")
-    rows = [xi.ImportedRow(source_name="1. Dejnek Agata", entries={1: "D"})]
+    db.add_employee("Pierwsza", "Agata")
+    rows = [xi.ImportedRow(source_name="1. Pierwsza Anna", entries={1: "D"})]
     xi.match_employees(rows, db.employees())
     assert rows[0].employee_id is not None
     db.close()

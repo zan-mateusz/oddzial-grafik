@@ -120,9 +120,9 @@ def test_export_sheet_shows_covering_nurse(ward, tmp_path):
 
 def test_import_targets_a_single_floor(ward):
     db, f1, f2, _, _ = ward
-    rows = [xi.ImportedRow(source_name="Dejnek Agata", entries={1: "D"}, create_new=True)]
+    rows = [xi.ImportedRow(source_name="Pierwsza Anna", entries={1: "D"}, create_new=True)]
     xi.apply_import(db, 2026, 6, rows, floor_id=f2)
-    created = [e for e in db.employees() if e["last_name"] == "Dejnek"][0]
+    created = [e for e in db.employees() if e["last_name"] == "Pierwsza"][0]
     assert created["floor_id"] == f2
     assert db.month_entries(2026, 6, f2)[(created["id"], dt.date(2026, 6, 1))] == "D"
     assert db.month_entries(2026, 6, f1) == {}

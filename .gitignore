@@ -3,7 +3,10 @@ __pycache__/
 *.pyc
 build/
 dist/
-*.spec
+# Uwaga: grafik.spec jest pisany ręcznie i potrzebny do budowania — nie wolno
+# go ignorować. Ignorujemy tylko pliki .spec generowane przez PyInstallera.
+/*.spec
+!grafik.spec
 .DS_Store
 grafik.db
 

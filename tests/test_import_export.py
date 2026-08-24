@@ -154,23 +154,24 @@ def test_import_ignores_days_outside_month(db):
 def test_matching_never_uses_first_names(db):
     """Dwie Ewy na oddziale to norma — imię nie może decydować o dopasowaniu."""
     db.add_employee("Przykładowa", "Ewa")
-    rows = [xi.ImportedRow(source_name="Mazurek Ewa", entries={1: "D"})]
+    rows = [xi.ImportedRow(source_name="Dziesiąta Ewa", entries={1: "D"})]
     xi.match_employees(rows, db.employees())
     assert rows[0].employee_id is None
     assert rows[0].create_new
 
 
 def test_matching_is_case_and_diacritic_insensitive(db):
-    emp = db.add_employee("Dudzińska", "Aneta")
-    rows = [xi.ImportedRow(source_name="DUDZINSKA ANETA", entries={1: "D"})]
+    """Arkusz bywa pisany wersalikami i bez polskich znaków."""
+    emp = db.add_employee("Żółkiewska", "Łucja")
+    rows = [xi.ImportedRow(source_name="ZOLKIEWSKA LUCJA", entries={1: "D"})]
     xi.match_employees(rows, db.employees())
     assert rows[0].employee_id == emp
 
 
 def test_matching_by_surname_alone_when_unambiguous(db):
-    emp = db.add_employee("Mazurek", "Ewa")
+    emp = db.add_employee("Dziesiąta", "Ewa")
     db.add_employee("Testowy", "Jan")
-    for source in ("Mazurek", "Mazurek A.", "1. Mazurek Ewa"):
+    for source in ("Dziesiąta", "Dziesiąta A.", "1. Dziesiąta Ewa"):
         rows = [xi.ImportedRow(source_name=source, entries={1: "D"})]
         xi.match_employees(rows, db.employees())
         assert rows[0].employee_id == emp, source
@@ -193,11 +194,27 @@ def test_shared_surname_is_left_for_the_user_to_decide(db):
 def test_unmatched_rows_default_to_creating_employees(db):
     """Import ma sam zakładać brakujących pracowników."""
     rows = [
-        xi.ImportedRow(source_name="Dejnek Agata", entries={1: "D"}),
-        xi.ImportedRow(source_name="Tryk Emilia", entries={2: "N"}),
+        xi.ImportedRow(source_name="Pierwsza Anna", entries={1: "D"}),
+        xi.ImportedRow(source_name="Jedenasta Emilia", entries={2: "N"}),
     ]
     xi.match_employees(rows, db.employees())
     assert all(r.create_new for r in rows)
     count, created = xi.apply_import(db, 2026, 6, rows)
     assert (count, created) == (2, 2)
-    assert {e["last_name"] for e in db.employees()} == {"Dejnek", "Tryk"}
+    assert {e["last_name"] for e in db.employees()} == {"Pierwsza", "Jedenasta"}
+
+
+@pytest.mark.parametrize("stored,in_file", [
+    ("Żółkiewska", "ZOLKIEWSKA"),
+    ("Łucka", "Lucka"),
+    ("Wróbel", "WROBEL"),
+    ("Głowacka", "GLOWACKA"),
+    ("Ćwikła", "Cwikla"),
+])
+def test_polish_letters_normalise_to_plain_ascii(db, stored, in_file):
+    """Litera „ł" nie rozkłada się jak pozostałe znaki diakrytyczne i wymaga
+    osobnej podmiany — bez niej „Głowacka" nie trafiłaby na „GLOWACKA"."""
+    emp = db.add_employee(stored, "Anna")
+    rows = [xi.ImportedRow(source_name=f"{in_file} ANNA", entries={1: "D"})]
+    xi.match_employees(rows, db.employees())
+    assert rows[0].employee_id == emp
