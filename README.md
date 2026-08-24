@@ -22,11 +22,19 @@ calculated automatically.
 - **Day colouring** — Saturdays, Sundays and public holidays are shaded
   distinctly. Nurses work through holidays; the colours are for visibility, and
   the holiday still reduces the contractual norm as the law requires.
-- **Employees** — add, edit, reorder, part-time fractions, end-of-employment
-  without destroying history.
+- **Multiple floors** — each floor has its own rota and its own staff, switched
+  from a dropdown. A nurse can be pencilled in on another floor as cover: the
+  shift records *where it was worked*, so no duplicate employee records. Her
+  own floor then shows that day greyed out, which prevents double-booking, and
+  clearing a cell only removes the shift from the floor being viewed.
+  `Godz. tu` / `Dyż. tu` count the current floor; `Godziny` / `Wymiar` /
+  `Bilans` always cover the whole month, since the statutory norm follows the
+  contract rather than the floor. With one floor those columns disappear.
+- **Employees** — add, edit, reorder, part-time fractions, floor assignment,
+  end-of-employment without destroying history.
 - **Shift types** — fully editable: code, name, hours, category, colour.
 - **Excel export** — formatted, colour-coded, print-ready A4 landscape with a
-  legend and frozen header. Opens in Excel and LibreOffice.
+  legend and frozen header, one sheet per floor. Opens in Excel and LibreOffice.
 - **Spreadsheet import** — reads `.xlsx` and `.ods` (LibreOffice/OpenOffice).
   Auto-detects the table layout, infers the month from the sheet name, strips
   ordinal prefixes from names (`1. Kowalska`), skips section headers and empty
@@ -49,7 +57,7 @@ app/
     xlsx_import.py   layout detection + name matching
     ocr.py           optional photo reader
   ui/        PySide6 widgets
-  db.py      SQLite storage
+  db.py      SQLite storage (versioned schema + migrations)
 ```
 
 `core/` is pure Python and fully unit-tested; the UI is a thin layer over it.

@@ -34,22 +34,24 @@ def photo_import_available() -> tuple[bool, str]:
 class ImportDialog(QDialog):
     """Wybór pliku, podgląd układu, dopasowanie nazwisk, import."""
 
-    def __init__(self, db, year: int, month: int, parent=None, photo: bool = False):
+    def __init__(self, db, year: int, month: int, parent=None, photo: bool = False,
+                 floor_id: int | None = None):
         super().__init__(parent)
         self.db = db
         self.photo_mode = photo
         self.imported_month = (year, month)
+        self.imported_floor = floor_id
         self.grids: list[xi.SheetGrid] = []
         self.rows: list[xi.ImportedRow] = []
         self.setWindowTitle("Import grafiku ze zdjęcia" if photo else "Import grafiku z Excela")
         self.resize(1080, 720)
 
-        self._build_ui(year, month)
+        self._build_ui(year, month, floor_id)
         self._pick_file()
 
     # --- interfejs ----------------------------------------------------------
 
-    def _build_ui(self, year: int, month: int) -> None:
+    def _build_ui(self, year: int, month: int, floor_id: int | None = None) -> None:
         root = QVBoxLayout(self)
 
         top = QHBoxLayout()
@@ -66,6 +68,14 @@ class ImportDialog(QDialog):
 
         self.cmb_sheet = QComboBox()
         self.cmb_sheet.currentIndexChanged.connect(self._on_sheet_changed)
+
+        self.cmb_floor = QComboBox()
+        for floor in self.db.floors():
+            self.cmb_floor.addItem(floor["name"], floor["id"])
+        if floor_id is not None:
+            index = self.cmb_floor.findData(floor_id)
+            if index >= 0:
+                self.cmb_floor.setCurrentIndex(index)
 
         month_row = QHBoxLayout()
         self.cmb_month = QComboBox()
@@ -101,10 +111,14 @@ class ImportDialog(QDialog):
         for w in (self.spin_header, self.spin_name_col, self.spin_first_row):
             w.valueChanged.connect(self._on_manual_layout_changed)
 
-        self.chk_replace = QCheckBox("Zastąp istniejące wpisy w tym miesiącu")
+        self.chk_replace = QCheckBox(
+            "Zastąp istniejące wpisy w tym miesiącu (tylko na wybranym piętrze)"
+        )
         self.chk_replace.setChecked(True)
 
         form.addRow("Arkusz", self.cmb_sheet)
+        if self.cmb_floor.count() > 1:
+            form.addRow("Importuj na piętro", self.cmb_floor)
         form.addRow("Importuj jako miesiąc", month_wrap)
         form.addRow("Położenie danych", pos_wrap)
         form.addRow("", self.chk_replace)
@@ -366,15 +380,17 @@ class ImportDialog(QDialog):
                                     "Wszystkie wiersze zostały pominięte.")
             return
 
+        floor_id = self.cmb_floor.currentData()
         new_count = sum(1 for r in selected if r.create_new)
         warning = ""
-        if self.chk_replace.isChecked() and self.db.month_entries(year, month):
+        if self.chk_replace.isChecked() and self.db.month_entries(year, month, floor_id):
             warning = ("\n\nUwaga: obecne wpisy w tym miesiącu zostaną usunięte "
                        "i zastąpione danymi z pliku.")
         answer = QMessageBox.question(
             self, "Potwierdzenie importu",
             f"Zaimportować {len(selected)} wierszy do "
-            f"{PL_MONTHS_TITLE[month - 1].lower()} {year}?"
+            f"{PL_MONTHS_TITLE[month - 1].lower()} {year}"
+            + (f" — {self.db.floor_name(floor_id)}?" if self.cmb_floor.count() > 1 else "?")
             + (f"\nZostanie utworzonych nowych pracowników: {new_count}." if new_count else "")
             + warning,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
@@ -384,9 +400,11 @@ class ImportDialog(QDialog):
             return
 
         entries, created = xi.apply_import(
-            self.db, year, month, selected, replace=self.chk_replace.isChecked()
+            self.db, year, month, selected,
+            replace=self.chk_replace.isChecked(), floor_id=floor_id,
         )
         self.imported_month = (year, month)
+        self.imported_floor = floor_id
         QMessageBox.information(
             self, "Import zakończony",
             f"Zaimportowano {entries} wpisów.\n"

@@ -358,14 +358,15 @@ def match_employees(rows: list[ImportedRow], employees: list) -> None:
 
 
 def apply_import(
-    db, year: int, month: int, rows: list[ImportedRow], replace: bool = True
+    db, year: int, month: int, rows: list[ImportedRow], replace: bool = True,
+    floor_id: int | None = None,
 ) -> tuple[int, int]:
     """Zapisuje zaimportowane wiersze. Zwraca (liczba wpisów, nowi pracownicy)."""
     from app.core.calendar_pl import month_days
 
     valid_days = {d.day: d for d in month_days(year, month)}
     created = 0
-    items: list[tuple[int, dt.date, str]] = []
+    items: list[tuple[int, dt.date, str, int | None]] = []
 
     for row in rows:
         emp_id = row.employee_id
@@ -373,18 +374,19 @@ def apply_import(
             if not row.create_new:
                 continue
             last, first = _split_name(row.source_name)
-            emp_id = db.add_employee(last, first)
+            emp_id = db.add_employee(last, first, floor_id=floor_id)
             created += 1
         for day, text in row.entries.items():
             date = valid_days.get(day)
             if date is None:
                 continue
-            items.append((emp_id, date, text))
+            items.append((emp_id, date, text, floor_id))
 
     if replace:
-        db.clear_month(year, month)
+        # Czyścimy tylko to piętro — grafik drugiego zostaje nietknięty.
+        db.clear_month(year, month, floor_id)
     db.set_entries_bulk(items)
-    return sum(1 for _, _, t in items if t.strip()), created
+    return sum(1 for item in items if item[2].strip()), created
 
 
 def _split_name(text: str) -> tuple[str, str]:

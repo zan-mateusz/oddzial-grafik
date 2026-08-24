@@ -71,11 +71,40 @@ Wpis, którego program nie rozpoznał, wyświetla się **na czerwono** — to sy
 Kolory są tylko po to, żeby te dni rzucały się w oczy przy układaniu obsady.
 Dyżury planuje się w nie normalnie.
 
+## Dwa piętra
+
+Każde piętro ma osobny grafik i własny skład. Przełączasz je listą **Piętro**
+nad tabelą. Pracownika przypisujesz do piętra na zakładce **Pracownicy**.
+
+### Zastępstwa
+
+Gdy ktoś z jednego piętra ma pracować na drugim:
+
+1. Przejdź na grafik tego piętra, na którym ma być dyżur.
+2. Kliknij **Dodaj zastępstwo…** i wybierz osobę z listy.
+3. Wpisz jej dyżur tak samo jak wszystkim innym.
+
+Osoby na zastępstwie widać kursywą, w kolorze pomarańczowym, ze strzałką ↻
+i nazwą swojego piętra.
+
+Jeśli ktoś ma tego dnia dyżur na **drugim** piętrze, jego komórka pokazuje ten
+dyżur **na szaro**. To zabezpieczenie przed wpisaniem komuś dwóch dyżurów
+jednocześnie. Wpisanie czegoś w taką komórkę przeniesie dyżur na oglądane
+piętro.
+
+Usunięcie zawartości komórki kasuje dyżur **tylko z oglądanego piętra** —
+dyżur na drugim piętrze zostaje nietknięty.
+
+Nazwy pięter zmienisz w **Narzędzia → Ustawienia**; tam też dodasz trzecie,
+jeśli będzie potrzebne.
+
 ## Podsumowanie po prawej stronie
 
 | Kolumna | Znaczenie |
 |---|---|
-| **Godziny** | ile godzin faktycznie wypracowano |
+| **Godz. tu** | godziny wypracowane **na oglądanym piętrze** |
+| **Dyż. tu** | liczba dyżurów na oglądanym piętrze |
+| **Godziny** | ile godzin wypracowano **w całym miesiącu**, razem z zastępstwami |
 | **Wymiar** | ile godzin przypada do przepracowania (etat, urlopy, święta) |
 | **Bilans** | nadgodziny na pomarańczowo, niedogodziny na czerwono |
 | **Dyż.** | liczba dyżurów |
@@ -85,17 +114,26 @@ Dyżury planuje się w nie normalnie.
 Wymiar zmniejsza się automatycznie za każde święto wypadające poza niedzielą
 oraz za dni urlopu i zwolnienia.
 
+Kolumny **Godziny**, **Wymiar** i **Bilans** liczą cały miesiąc niezależnie od
+piętra — pracownik ma jedną umowę i jeden wymiar czasu pracy. Kolumny z „tu"
+pokazują, ile z tego przypadło na oglądane piętro. Przy jednym piętrze kolumny
+„tu" w ogóle się nie pojawiają.
+
 ## Zapisywanie i wydruk
 
 Dane zapisują się **automatycznie** — nie ma przycisku „Zapisz”.
 
 **Plik → Eksportuj do Excela** tworzy arkusz gotowy do wydruku (poziomo, A4,
-z legendą). Otworzy się w Excelu i w LibreOffice/OpenOffice.
+z legendą). Każde piętro trafia na osobną kartę w tym samym pliku. Otworzy się
+w Excelu i w LibreOffice/OpenOffice.
 
 ## Wczytanie istniejącego grafiku
 
-**Plik → Importuj z pliku Excel** — program sam znajduje wiersz z numerami dni
-i kolumnę z nazwiskami. Jeśli trafi źle, popraw numery w polach *Położenie
+**Plik → Importuj z pliku Excel** — obsługuje pliki `.xlsx` oraz `.ods`
+z LibreOffice/OpenOffice. Program sam wybiera arkusz z grafikiem (pomijając
+puste), odczytuje miesiąc z jego nazwy i znajduje wiersz z numerami dni oraz
+kolumnę z nazwiskami. Wskaż jeszcze, **na które piętro** wczytać dane —
+grafik drugiego piętra pozostanie nietknięty. Jeśli trafi źle, popraw numery w polach *Położenie
 danych*; podgląd od razu pokazuje, co zostanie wczytane. Na dole dopasujesz
 nazwiska z pliku do pracowników w programie.
 

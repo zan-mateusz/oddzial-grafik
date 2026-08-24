@@ -17,15 +17,17 @@ FTE_CHOICES = [
 
 
 class EmployeeDialog(QDialog):
-    def __init__(self, parent=None, row=None):
+    def __init__(self, parent=None, row=None, floors=None):
         super().__init__(parent)
         self.setWindowTitle("Pracownik")
         self.setMinimumWidth(380)
+        self._floors = floors or []
 
         self.ed_last = QLineEdit()
         self.ed_first = QLineEdit()
         self.ed_position = QLineEdit()
         self.ed_position.setPlaceholderText("np. pielęgniarka, oddziałowa")
+        self.cmb_floor = QComboBox()
         self.cmb_fte = QComboBox()
         for label, num, den in FTE_CHOICES:
             self.cmb_fte.addItem(label, (num, den))
@@ -36,6 +38,9 @@ class EmployeeDialog(QDialog):
         self.chk_active = QCheckBox("Pracuje obecnie")
         self.chk_active.setChecked(True)
         self.ed_notes = QLineEdit()
+
+        for floor in self._floors:
+            self.cmb_floor.addItem(floor["name"], floor["id"])
 
         if row is not None:
             self.ed_last.setText(row["last_name"])
@@ -49,11 +54,16 @@ class EmployeeDialog(QDialog):
             self.ed_ended.setText(row["ended_on"] or "")
             self.chk_active.setChecked(bool(row["active"]))
             self.ed_notes.setText(row["notes"])
+            index = self.cmb_floor.findData(row["floor_id"])
+            if index >= 0:
+                self.cmb_floor.setCurrentIndex(index)
 
         form = QFormLayout()
         form.addRow("Nazwisko *", self.ed_last)
         form.addRow("Imię", self.ed_first)
         form.addRow("Stanowisko", self.ed_position)
+        if len(self._floors) > 1:
+            form.addRow("Piętro", self.cmb_floor)
         form.addRow("Wymiar etatu", self.cmb_fte)
         form.addRow("Zatrudniona od", self.ed_hired)
         form.addRow("Zatrudniona do", self.ed_ended)
@@ -100,11 +110,13 @@ class EmployeeDialog(QDialog):
             "ended_on": self.ed_ended.text().strip() or None,
             "active": 1 if self.chk_active.isChecked() else 0,
             "notes": self.ed_notes.text().strip(),
+            "floor_id": self.cmb_floor.currentData(),
         }
 
 
 class EmployeesView(QWidget):
-    HEADERS = ["Nazwisko", "Imię", "Stanowisko", "Etat", "Od", "Do", "Pracuje", "Uwagi"]
+    HEADERS = ["Nazwisko", "Imię", "Stanowisko", "Piętro", "Etat", "Od", "Do",
+               "Pracuje", "Uwagi"]
 
     def __init__(self, db, on_change=None, parent=None):
         super().__init__(parent)
@@ -172,7 +184,8 @@ class EmployeesView(QWidget):
             fte = ("1/1" if row["fte_num"] == row["fte_den"]
                    else f"{row['fte_num']}/{row['fte_den']}")
             values = [
-                row["last_name"], row["first_name"], row["position"], fte,
+                row["last_name"], row["first_name"], row["position"],
+                self.db.floor_name(row["floor_id"]), fte,
                 row["hired_on"] or "", row["ended_on"] or "",
                 "tak" if row["active"] else "nie", row["notes"],
             ]
@@ -187,13 +200,13 @@ class EmployeesView(QWidget):
         return self._rows[r] if 0 <= r < len(self._rows) else None
 
     def add_employee(self) -> None:
-        dlg = EmployeeDialog(self)
+        dlg = EmployeeDialog(self, floors=self.db.floors())
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         vals = dlg.values()
         emp_id = self.db.add_employee(
             vals["last_name"], vals["first_name"], vals["position"],
-            vals["fte_num"], vals["fte_den"], vals["hired_on"],
+            vals["fte_num"], vals["fte_den"], vals["hired_on"], vals["floor_id"],
         )
         self.db.update_employee(emp_id, **vals)
         self.reload()
@@ -203,7 +216,7 @@ class EmployeesView(QWidget):
         row = self._selected_row()
         if row is None:
             return
-        dlg = EmployeeDialog(self, row)
+        dlg = EmployeeDialog(self, row, floors=self.db.floors())
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         self.db.update_employee(row["id"], **dlg.values())

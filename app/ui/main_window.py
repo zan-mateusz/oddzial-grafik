@@ -38,6 +38,17 @@ Dzień wolny zostaw pusty.</p>
 Zaznacz kilka komórek myszką i kliknij przycisk zmiany nad tabelą — albo
 kliknij zaznaczenie prawym przyciskiem. Klawisz <b>Delete</b> czyści zaznaczenie.</p>
 
+<p><b>Dwa piętra</b><br>
+Każde piętro ma własny grafik — przełączasz je listą <b>Piętro</b> u góry.
+Jeśli ktoś ma podmienić kogoś na drugim piętrze, kliknij
+<b>Dodaj zastępstwo…</b>, wybierz osobę i wpisz jej dyżur.
+Osoby na zastępstwie są wypisane kursywą ze strzałką i nazwą swojego piętra.</p>
+
+<p>Dyżur, który ktoś pełni na drugim piętrze, widać tu na szaro — dzięki temu
+nie zaplanujesz komuś dwóch dyżurów tego samego dnia. Kolumny <b>Godz. tu</b>
+i <b>Dyż. tu</b> dotyczą oglądanego piętra, a <b>Godziny</b>, <b>Wymiar</b>
+i <b>Bilans</b> — całego miesiąca, bo wymiar czasu pracy jest jeden.</p>
+
 <p><b>Kolory dni</b><br>
 Soboty i niedziele mają niebieskie nagłówki, święta ustawowe — różowe.
 Dyżury w te dni planuje się normalnie.</p>
@@ -148,11 +159,12 @@ class MainWindow(QMainWindow):
 
     def import_xlsx(self) -> None:
         from app.ui.import_dialog import ImportDialog
-        dlg = ImportDialog(self.db, self.rota_view.model.year, self.rota_view.model.month, self)
+        dlg = ImportDialog(
+            self.db, self.rota_view.model.year, self.rota_view.model.month, self,
+            floor_id=self.rota_view.floor_id,
+        )
         if dlg.exec() == dlg.DialogCode.Accepted:
-            self.rota_view.set_month(*dlg.imported_month)
-            self.rota_view.refresh()
-            self.employees_view.reload()
+            self._show_imported(dlg)
 
     def import_photo(self) -> None:
         from app.ui.import_dialog import photo_import_available, ImportDialog
@@ -161,12 +173,21 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Import ze zdjęcia", message)
             return
         dlg = ImportDialog(
-            self.db, self.rota_view.model.year, self.rota_view.model.month, self, photo=True
+            self.db, self.rota_view.model.year, self.rota_view.model.month, self,
+            photo=True, floor_id=self.rota_view.floor_id,
         )
         if dlg.exec() == dlg.DialogCode.Accepted:
-            self.rota_view.set_month(*dlg.imported_month)
-            self.rota_view.refresh()
-            self.employees_view.reload()
+            self._show_imported(dlg)
+
+    def _show_imported(self, dlg) -> None:
+        """Po imporcie pokazujemy dokładnie ten grafik, który wczytano."""
+        if dlg.imported_floor is not None:
+            index = self.rota_view.cmb_floor.findData(dlg.imported_floor)
+            if index >= 0:
+                self.rota_view.cmb_floor.setCurrentIndex(index)
+        self.rota_view.set_month(*dlg.imported_month)
+        self.rota_view.refresh()
+        self.employees_view.reload()
 
     # --- kopie zapasowe -----------------------------------------------------
 
@@ -207,14 +228,15 @@ class MainWindow(QMainWindow):
     def copy_previous_month(self) -> None:
         m = self.rota_view.model
         prev_y, prev_m = (m.year - 1, 12) if m.month == 1 else (m.year, m.month - 1)
-        source = self.db.month_entries(prev_y, prev_m)
+        floor_id = self.rota_view.floor_id
+        source = self.db.month_entries(prev_y, prev_m, floor_id)
         if not source:
             QMessageBox.information(
                 self, "Brak danych",
                 f"{PL_MONTHS_TITLE[prev_m - 1]} {prev_y} nie zawiera żadnych wpisów.",
             )
             return
-        if self.db.month_entries(m.year, m.month):
+        if self.db.month_entries(m.year, m.month, floor_id):
             answer = QMessageBox.question(
                 self, "Kopiowanie grafiku",
                 f"Bieżący miesiąc zawiera już wpisy — zostaną nadpisane wpisami "
@@ -234,8 +256,8 @@ class MainWindow(QMainWindow):
                 break
             for (emp_id, src_day), raw in source.items():
                 if src_day == prev_days[i]:
-                    items.append((emp_id, day, raw))
-        self.db.clear_month(m.year, m.month)
+                    items.append((emp_id, day, raw, floor_id))
+        self.db.clear_month(m.year, m.month, floor_id)
         self.db.set_entries_bulk(items)
         self.rota_view.refresh()
         QMessageBox.information(
@@ -246,15 +268,20 @@ class MainWindow(QMainWindow):
 
     def clear_month(self) -> None:
         m = self.rota_view.model
+        floor_id = self.rota_view.floor_id
+        where = ""
+        if len(self.db.floors()) > 1:
+            where = f" na piętrze {self.db.floor_name(floor_id)}"
         answer = QMessageBox.warning(
             self, "Czyszczenie grafiku",
-            f"Usunąć wszystkie wpisy z {PL_MONTHS_TITLE[m.month - 1].lower()} {m.year}?",
+            f"Usunąć wszystkie wpisy z {PL_MONTHS_TITLE[m.month - 1].lower()} "
+            f"{m.year}{where}?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel,
         )
         if answer != QMessageBox.StandardButton.Yes:
             return
-        self.db.clear_month(m.year, m.month)
+        self.db.clear_month(m.year, m.month, floor_id)
         self.rota_view.refresh()
 
     def open_settings(self) -> None:

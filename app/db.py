@@ -7,12 +7,20 @@ from pathlib import Path
 
 from app.core.shifts import DEFAULT_SHIFT_TYPES, Category, ShiftType
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
+);
+
+-- Piętra (oddziały) prowadzone w jednym pliku. Pracownik ma piętro macierzyste,
+-- ale pojedynczy dyżur może być odbyty na innym — to zastępstwo.
+CREATE TABLE IF NOT EXISTS floors (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS employees (
@@ -26,7 +34,8 @@ CREATE TABLE IF NOT EXISTS employees (
     sort_order  INTEGER NOT NULL DEFAULT 0,
     hired_on    TEXT,
     ended_on    TEXT,
-    notes       TEXT NOT NULL DEFAULT ''
+    notes       TEXT NOT NULL DEFAULT '',
+    floor_id    INTEGER REFERENCES floors(id)
 );
 
 CREATE TABLE IF NOT EXISTS shift_types (
@@ -45,6 +54,8 @@ CREATE TABLE IF NOT EXISTS entries (
     employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
     day         TEXT NOT NULL,
     raw         TEXT NOT NULL,
+    -- Piętro, na którym dyżur został faktycznie odbyty.
+    floor_id    INTEGER REFERENCES floors(id),
     PRIMARY KEY (employee_id, day)
 );
 
@@ -85,12 +96,91 @@ class Database:
 
     def _init_meta(self) -> None:
         cur = self.conn.execute("SELECT value FROM meta WHERE key='schema_version'")
-        if cur.fetchone() is None:
+        row = cur.fetchone()
+        if row is None:
             self.conn.execute(
                 "INSERT INTO meta(key, value) VALUES('schema_version', ?)",
                 (str(SCHEMA_VERSION),),
             )
             self.seed_shift_types()
+            self.seed_floors()
+        else:
+            self._migrate(int(row["value"]))
+
+    def _migrate(self, version: int) -> None:
+        """Uaktualnia starszą bazę bez utraty danych."""
+        if version < 2:
+            self._add_column("employees", "floor_id", "INTEGER REFERENCES floors(id)")
+            self._add_column("entries", "floor_id", "INTEGER REFERENCES floors(id)")
+            self.seed_floors()
+            default = self.floors()[0]["id"]
+            # Dotychczasowe dane pochodzą sprzed podziału na piętra.
+            self.conn.execute(
+                "UPDATE employees SET floor_id=? WHERE floor_id IS NULL", (default,)
+            )
+            self.conn.execute(
+                "UPDATE entries SET floor_id=(SELECT floor_id FROM employees "
+                "WHERE employees.id = entries.employee_id) WHERE floor_id IS NULL"
+            )
+        self.conn.execute(
+            "UPDATE meta SET value=? WHERE key='schema_version'", (str(SCHEMA_VERSION),)
+        )
+        self.conn.commit()
+
+    def _add_column(self, table: str, column: str, definition: str) -> None:
+        existing = {
+            r["name"] for r in self.conn.execute(f"PRAGMA table_info({table})")
+        }
+        if column not in existing:
+            self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+    # --- piętra -------------------------------------------------------------
+
+    def seed_floors(self) -> None:
+        if self.conn.execute("SELECT 1 FROM floors LIMIT 1").fetchone():
+            return
+        for i, name in enumerate(("I piętro", "II piętro")):
+            self.conn.execute(
+                "INSERT INTO floors(name, sort_order) VALUES(?,?)", (name, i)
+            )
+        self.conn.commit()
+
+    def floors(self) -> list[sqlite3.Row]:
+        return list(self.conn.execute(
+            "SELECT * FROM floors ORDER BY sort_order, id"
+        ).fetchall())
+
+    def floor_name(self, floor_id: int | None) -> str:
+        if floor_id is None:
+            return ""
+        row = self.conn.execute(
+            "SELECT name FROM floors WHERE id=?", (floor_id,)
+        ).fetchone()
+        return row["name"] if row else ""
+
+    def add_floor(self, name: str) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO floors(name, sort_order) VALUES(?, "
+            "(SELECT COALESCE(MAX(sort_order)+1,0) FROM floors))",
+            (name,),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    def rename_floor(self, floor_id: int, name: str) -> None:
+        self.conn.execute("UPDATE floors SET name=? WHERE id=?", (name, floor_id))
+        self.conn.commit()
+
+    def delete_floor(self, floor_id: int) -> None:
+        """Usuwa piętro; pracownicy i dyżury zostają bez przypisania."""
+        self.conn.execute(
+            "UPDATE employees SET floor_id=NULL WHERE floor_id=?", (floor_id,)
+        )
+        self.conn.execute(
+            "UPDATE entries SET floor_id=NULL WHERE floor_id=?", (floor_id,)
+        )
+        self.conn.execute("DELETE FROM floors WHERE id=?", (floor_id,))
+        self.conn.commit()
 
     def close(self) -> None:
         self.conn.commit()
@@ -169,42 +259,73 @@ class Database:
 
     # --- pracownicy ---------------------------------------------------------
 
-    def employees(self, include_inactive: bool = False) -> list[sqlite3.Row]:
-        sql = "SELECT * FROM employees"
+    def employees(
+        self, include_inactive: bool = False, floor_id: int | None = None
+    ) -> list[sqlite3.Row]:
+        clauses, params = [], []
         if not include_inactive:
-            sql += " WHERE active=1"
+            clauses.append("active=1")
+        if floor_id is not None:
+            clauses.append("floor_id=?")
+            params.append(floor_id)
+        sql = "SELECT * FROM employees"
+        if clauses:
+            sql += " WHERE " + " AND ".join(clauses)
         sql += " ORDER BY sort_order, last_name, first_name"
-        return list(self.conn.execute(sql).fetchall())
+        return list(self.conn.execute(sql, params).fetchall())
 
-    def employees_for_month(self, year: int, month: int) -> list[sqlite3.Row]:
-        """Pracownicy zatrudnieni w danym miesiącu — z historią, więc dawne
-        grafiki nadal pokazują osoby, które już nie pracują."""
-        first = dt.date(year, month, 1).isoformat()
-        last = (dt.date(year + 1, 1, 1) if month == 12
-                else dt.date(year, month + 1, 1)) - dt.timedelta(days=1)
-        last_s = last.isoformat()
-        return list(self.conn.execute(
-            "SELECT * FROM employees WHERE "
+    def employees_for_month(
+        self, year: int, month: int, floor_id: int | None = None
+    ) -> list[sqlite3.Row]:
+        """Pracownicy widoczni w grafiku danego miesiąca.
+
+        Zachowuje historię — dawne grafiki nadal pokazują osoby, które już nie
+        pracują. Przy wskazanym piętrze dochodzą osoby z innych pięter, które
+        mają tu dyżur (zastępstwo).
+        """
+        first, last_s = self._month_bounds(year, month)
+        base = (
             "(hired_on IS NULL OR hired_on <= ?) AND (ended_on IS NULL OR ended_on >= ?) "
-            "AND (active=1 OR id IN (SELECT employee_id FROM entries WHERE day BETWEEN ? AND ?)) "
+            "AND (active=1 OR id IN (SELECT employee_id FROM entries "
+            "WHERE day BETWEEN ? AND ?))"
+        )
+        params = [last_s, first, first, last_s]
+        if floor_id is not None:
+            base += (
+                " AND (floor_id=? OR id IN (SELECT employee_id FROM entries "
+                "WHERE day BETWEEN ? AND ? AND floor_id=?))"
+            )
+            params += [floor_id, first, last_s, floor_id]
+        return list(self.conn.execute(
+            f"SELECT * FROM employees WHERE {base} "
             "ORDER BY sort_order, last_name, first_name",
-            (last_s, first, first, last_s),
+            params,
         ).fetchall())
 
+    def _month_bounds(self, year: int, month: int) -> tuple[str, str]:
+        first = dt.date(year, month, 1)
+        last = (dt.date(year + 1, 1, 1) if month == 12
+                else dt.date(year, month + 1, 1)) - dt.timedelta(days=1)
+        return first.isoformat(), last.isoformat()
+
     def add_employee(self, last_name: str, first_name: str = "", position: str = "",
-                     fte_num: int = 1, fte_den: int = 1, hired_on: str | None = None) -> int:
+                     fte_num: int = 1, fte_den: int = 1, hired_on: str | None = None,
+                     floor_id: int | None = None) -> int:
+        if floor_id is None:
+            floors = self.floors()
+            floor_id = floors[0]["id"] if floors else None
         cur = self.conn.execute(
             "INSERT INTO employees(last_name, first_name, position, fte_num, fte_den, "
-            "hired_on, sort_order) VALUES(?,?,?,?,?,?, "
+            "hired_on, floor_id, sort_order) VALUES(?,?,?,?,?,?,?, "
             "(SELECT COALESCE(MAX(sort_order)+1,0) FROM employees))",
-            (last_name, first_name, position, fte_num, fte_den, hired_on),
+            (last_name, first_name, position, fte_num, fte_den, hired_on, floor_id),
         )
         self.conn.commit()
         return int(cur.lastrowid)
 
     def update_employee(self, emp_id: int, **fields) -> None:
         allowed = {"last_name", "first_name", "position", "fte_num", "fte_den",
-                   "active", "sort_order", "hired_on", "ended_on", "notes"}
+                   "active", "sort_order", "hired_on", "ended_on", "notes", "floor_id"}
         sets = {k: v for k, v in fields.items() if k in allowed}
         if not sets:
             return
@@ -235,57 +356,84 @@ class Database:
 
     # --- wpisy grafiku ------------------------------------------------------
 
-    def month_entries(self, year: int, month: int) -> dict[tuple[int, dt.date], str]:
-        first = dt.date(year, month, 1)
-        last = (dt.date(year + 1, 1, 1) if month == 12
-                else dt.date(year, month + 1, 1)) - dt.timedelta(days=1)
-        rows = self.conn.execute(
-            "SELECT employee_id, day, raw FROM entries WHERE day BETWEEN ? AND ?",
-            (first.isoformat(), last.isoformat()),
-        ).fetchall()
+    def month_entries(
+        self, year: int, month: int, floor_id: int | None = None
+    ) -> dict[tuple[int, dt.date], str]:
+        """Treść komórek. Bez wskazania piętra zwraca dyżury ze wszystkich."""
+        first, last = self._month_bounds(year, month)
+        sql = "SELECT employee_id, day, raw FROM entries WHERE day BETWEEN ? AND ?"
+        params: list = [first, last]
+        if floor_id is not None:
+            sql += " AND floor_id=?"
+            params.append(floor_id)
+        rows = self.conn.execute(sql, params).fetchall()
         return {
             (r["employee_id"], dt.date.fromisoformat(r["day"])): r["raw"] for r in rows
         }
 
-    def set_entry(self, employee_id: int, day: dt.date, raw: str) -> None:
-        raw = (raw or "").strip()
-        if not raw:
-            self.conn.execute(
-                "DELETE FROM entries WHERE employee_id=? AND day=?",
-                (employee_id, day.isoformat()),
-            )
-        else:
-            self.conn.execute(
-                "INSERT INTO entries(employee_id, day, raw) VALUES(?,?,?) "
-                "ON CONFLICT(employee_id, day) DO UPDATE SET raw=excluded.raw",
-                (employee_id, day.isoformat(), raw),
-            )
-        self.conn.commit()
+    def month_entry_floors(
+        self, year: int, month: int
+    ) -> dict[tuple[int, dt.date], int | None]:
+        """Piętro każdego dyżuru — do rozpoznania zastępstw."""
+        first, last = self._month_bounds(year, month)
+        rows = self.conn.execute(
+            "SELECT employee_id, day, floor_id FROM entries WHERE day BETWEEN ? AND ?",
+            (first, last),
+        ).fetchall()
+        return {
+            (r["employee_id"], dt.date.fromisoformat(r["day"])): r["floor_id"]
+            for r in rows
+        }
 
-    def set_entries_bulk(self, items: list[tuple[int, dt.date, str]]) -> None:
-        for emp_id, day, raw in items:
+    def set_entry(
+        self, employee_id: int, day: dt.date, raw: str, floor_id: int | None = None
+    ) -> None:
+        self.set_entries_bulk([(employee_id, day, raw, floor_id)])
+
+    def set_entries_bulk(self, items: list[tuple]) -> None:
+        """Zapisuje wpisy. Element to (pracownik, dzień, treść) lub
+        (pracownik, dzień, treść, piętro)."""
+        for item in items:
+            emp_id, day, raw = item[0], item[1], item[2]
+            floor_id = item[3] if len(item) > 3 else None
             raw = (raw or "").strip()
             if not raw:
-                self.conn.execute(
-                    "DELETE FROM entries WHERE employee_id=? AND day=?",
-                    (emp_id, day.isoformat()),
-                )
-            else:
-                self.conn.execute(
-                    "INSERT INTO entries(employee_id, day, raw) VALUES(?,?,?) "
-                    "ON CONFLICT(employee_id, day) DO UPDATE SET raw=excluded.raw",
-                    (emp_id, day.isoformat(), raw),
-                )
+                # Pusta komórka na grafiku piętra znaczy „nie pracuje tutaj",
+                # a nie „nie pracuje nigdzie" — dyżur na innym piętrze zostaje.
+                if floor_id is None:
+                    self.conn.execute(
+                        "DELETE FROM entries WHERE employee_id=? AND day=?",
+                        (emp_id, day.isoformat()),
+                    )
+                else:
+                    self.conn.execute(
+                        "DELETE FROM entries WHERE employee_id=? AND day=? "
+                        "AND (floor_id=? OR floor_id IS NULL)",
+                        (emp_id, day.isoformat(), floor_id),
+                    )
+                continue
+            if floor_id is None:
+                # Domyślnie dyżur odbywa się na macierzystym piętrze pracownika.
+                row = self.conn.execute(
+                    "SELECT floor_id FROM employees WHERE id=?", (emp_id,)
+                ).fetchone()
+                floor_id = row["floor_id"] if row else None
+            self.conn.execute(
+                "INSERT INTO entries(employee_id, day, raw, floor_id) VALUES(?,?,?,?) "
+                "ON CONFLICT(employee_id, day) DO UPDATE SET "
+                "raw=excluded.raw, floor_id=excluded.floor_id",
+                (emp_id, day.isoformat(), raw, floor_id),
+            )
         self.conn.commit()
 
-    def clear_month(self, year: int, month: int) -> None:
-        first = dt.date(year, month, 1)
-        last = (dt.date(year + 1, 1, 1) if month == 12
-                else dt.date(year, month + 1, 1)) - dt.timedelta(days=1)
-        self.conn.execute(
-            "DELETE FROM entries WHERE day BETWEEN ? AND ?",
-            (first.isoformat(), last.isoformat()),
-        )
+    def clear_month(self, year: int, month: int, floor_id: int | None = None) -> None:
+        first, last = self._month_bounds(year, month)
+        sql = "DELETE FROM entries WHERE day BETWEEN ? AND ?"
+        params: list = [first, last]
+        if floor_id is not None:
+            sql += " AND floor_id=?"
+            params.append(floor_id)
+        self.conn.execute(sql, params)
         self.conn.commit()
 
     def months_with_data(self) -> list[tuple[int, int]]:
