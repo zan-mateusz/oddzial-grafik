@@ -1,7 +1,10 @@
 """Punkt wejścia aplikacji."""
 from __future__ import annotations
 
+import argparse
+import datetime as dt
 import sys
+from pathlib import Path
 
 from PySide6.QtCore import QLocale
 from PySide6.QtGui import QColor, QPalette
@@ -38,16 +41,67 @@ def _light_palette() -> QPalette:
     return pal
 
 
-def main() -> int:
+def _parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="grafik", description="Program do układania grafików dyżurów."
+    )
+    parser.add_argument(
+        "--db", metavar="PLIK",
+        help="użyj wskazanego pliku bazy zamiast domyślnego "
+             "(przydatne do testów, żeby nie ruszać prawdziwych danych)",
+    )
+    parser.add_argument(
+        "--demo", action="store_true",
+        help="uruchom na osobnej bazie wypełnionej przykładowym grafikiem",
+    )
+    parser.add_argument(
+        "--month", metavar="RRRR-MM",
+        help="otwórz od razu wskazany miesiąc, np. 2026-06",
+    )
+    return parser.parse_args(argv)
+
+
+def _open_database(args: argparse.Namespace):
+    """Wybiera plik bazy: --db, tryb demo albo dane użytkownika."""
+    if args.db:
+        return Database(Path(args.db)), None
+    if args.demo:
+        from app.demo import seed_demo
+
+        path = config.data_dir() / "demo.db"
+        fresh = not path.exists()
+        db = Database(path)
+        if fresh:
+            today = dt.date.today()
+            db.set_setting("ward_name", "Oddział Wewnętrzny (dane przykładowe)")
+            seed_demo(db, today.year, today.month)
+        return db, "demo"
+    return Database(config.db_path()), None
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(sys.argv[1:] if argv is None else argv)
+
     QLocale.setDefault(QLocale(QLocale.Language.Polish, QLocale.Country.Poland))
-    qt_app = QApplication(sys.argv)
+    qt_app = QApplication(sys.argv[:1])
     qt_app.setApplicationName("Grafik")
     qt_app.setOrganizationName("Grafik")
     qt_app.setStyle("Fusion")
     qt_app.setPalette(_light_palette())
 
-    db = Database(config.db_path())
+    db, mode = _open_database(args)
     window = MainWindow(db)
+    if mode == "demo":
+        window.setWindowTitle("Grafik dyżurów — DANE PRZYKŁADOWE")
+
+    if args.month:
+        try:
+            year, month = (int(part) for part in args.month.split("-", 1))
+            window.rota_view.set_month(year, month)
+        except (ValueError, TypeError):
+            print(f"Nieprawidłowy miesiąc: {args.month} (oczekiwano RRRR-MM)",
+                  file=sys.stderr)
+
     window.show()
     return qt_app.exec()
 

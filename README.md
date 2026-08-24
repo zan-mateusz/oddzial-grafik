@@ -64,7 +64,20 @@ python3 -m venv .venv
 ```
 
 Data lives in the OS application-data directory (`%APPDATA%\Grafik` on Windows,
-`~/Library/Application Support/Grafik` on macOS), not in the repo.
+`~/Library/Application Support/Grafik` on macOS), not in the repo. A fresh
+install starts empty — no employees, no entries, just the seven default shift
+codes. Nothing is bundled into the installer.
+
+Flags for testing without touching real data:
+
+```bash
+.venv/bin/python -m app --demo                  # sample ward in a separate demo.db
+.venv/bin/python -m app --demo --month 2026-06  # open a specific month
+.venv/bin/python -m app --db /tmp/scratch.db    # throwaway database
+```
+
+`--demo` marks the window title so it can't be mistaken for real data. Delete
+the data directory to get the clean-install experience back.
 
 ## Building the Windows executable
 
