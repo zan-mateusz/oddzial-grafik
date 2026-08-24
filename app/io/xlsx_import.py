@@ -69,6 +69,22 @@ def read_sheets(path: str | Path) -> list[SheetGrid]:
     return grids
 
 
+def best_sheet_index(grids: list[SheetGrid], expected_days: int = 31) -> int:
+    """Wskazuje arkusz, który naprawdę zawiera grafik.
+
+    Skoroszyty prowadzone latami mają zwykle kilka pustych arkuszy ("Arkusz14")
+    przed właściwym. Bez tego wyboru kreator otwierałby pierwszy z brzegu, pusty.
+    """
+    best_index, best_score = 0, (-1.0, -1)
+    for i, grid in enumerate(grids):
+        layout = detect_layout(grid, expected_days)
+        rows = len(extract_rows(grid, layout)) if layout.ok else 0
+        score = (layout.confidence if layout.ok else 0.0, rows)
+        if score > best_score:
+            best_index, best_score = i, score
+    return best_index
+
+
 def _as_text(value) -> str:
     if value is None:
         return ""
@@ -301,24 +317,42 @@ def _looks_like_shift_code(name: str) -> bool:
     return len(stripped) <= 6 and not any(ch.islower() for ch in stripped)
 
 
+def normalize_token(text: str) -> str:
+    """Pojedynczy wyraz bez ogonków i wielkości liter — do porównań nazwisk."""
+    plain = unicodedata.normalize("NFKD", text.strip().lower())
+    plain = "".join(ch for ch in plain if not unicodedata.combining(ch))
+    return re.sub(r"[^a-z]", "", plain)
+
+
 def match_employees(rows: list[ImportedRow], employees: list) -> None:
-    """Dopasowuje wiersze do istniejących pracowników po nazwisku i imieniu."""
-    index = {}
+    """Dopasowuje wiersze do pracowników po pełnym imieniu i nazwisku.
+
+    Gdy pełne dopasowanie zawiedzie (w arkuszu bywa "Kowalska A."), próbujemy
+    po samym nazwisku — ale wyłącznie wtedy, gdy wskazuje ono jednoznacznie na
+    jedną osobę. Dopasowanie po imieniu byłoby niebezpieczne: dwie Ewy na
+    oddziale to norma, a pomyłka przypisałaby dyżury nie tej osobie.
+    """
+    exact: dict[str, int] = {}
+    by_surname: dict[str, set[int]] = {}
     for emp in employees:
         full = f"{emp['last_name']} {emp['first_name']}".strip()
-        index[normalize_name(full)] = emp["id"]
-        index.setdefault(normalize_name(emp["last_name"]), emp["id"])
+        exact.setdefault(normalize_name(full), emp["id"])
+        surname = normalize_token(emp["last_name"])
+        if surname:
+            by_surname.setdefault(surname, set()).add(emp["id"])
 
     for row in rows:
         key = normalize_name(row.source_name)
-        emp_id = index.get(key)
+        emp_id = exact.get(key)
         if emp_id is None:
-            # Dopasowanie po samym nazwisku, gdy w arkuszu jest np. "Kowalska A."
-            first_word = key.split()[0] if key.split() else ""
-            for idx_key, idx_id in index.items():
-                if first_word and first_word in idx_key.split():
-                    emp_id = idx_id
-                    break
+            tokens = set(key.split())
+            candidates: set[int] = set()
+            for surname, ids in by_surname.items():
+                if surname in tokens:
+                    candidates |= ids
+            # Przy dwóch osobach o tym samym nazwisku wybór zostawiamy użytkownikowi.
+            if len(candidates) == 1:
+                emp_id = candidates.pop()
         row.employee_id = emp_id
         row.create_new = emp_id is None
 

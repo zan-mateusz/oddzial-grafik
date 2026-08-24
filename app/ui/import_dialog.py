@@ -184,7 +184,14 @@ class ImportDialog(QDialog):
             return
         self.cmb_sheet.blockSignals(True)
         self.cmb_sheet.clear()
-        self.cmb_sheet.addItems([g.name for g in self.grids])
+        for grid in self.grids:
+            filled = sum(1 for row in grid.cells if any(row))
+            label = grid.name if filled else f"{grid.name}  (pusty)"
+            self.cmb_sheet.addItem(label)
+        # Skoroszyt zwykle zawiera puste arkusze przed właściwym grafikiem.
+        self.cmb_sheet.setCurrentIndex(
+            xi.best_sheet_index(self.grids, self._days_in_target_month())
+        )
         self.cmb_sheet.blockSignals(False)
         self.cmb_sheet.setEnabled(len(self.grids) > 1)
         self._on_sheet_changed()
@@ -252,11 +259,19 @@ class ImportDialog(QDialog):
         self._fill_preview(grid, lay)
 
         if not lay.ok:
-            self.lbl_status.setText(
-                "<span style='color:#B00020'>Nie rozpoznano układu tabeli. "
-                "Wskaż ręcznie wiersz z numerami dni oraz kolumnę z nazwiskami "
-                "(numery widać w nagłówkach podglądu).</span>"
-            )
+            empty = not any(any(row) for row in grid.cells)
+            if empty:
+                hint = (
+                    f"Arkusz „{grid.name}” jest pusty. "
+                    "Wybierz z listy powyżej arkusz z grafikiem."
+                )
+            else:
+                hint = (
+                    "Nie rozpoznano układu tabeli. Wskaż ręcznie wiersz "
+                    "z numerami dni oraz kolumnę z nazwiskami — numery wierszy "
+                    "i kolumn widać w nagłówkach podglądu."
+                )
+            self.lbl_status.setText(f"<span style='color:#B00020'>{hint}</span>")
             self.mapping.setRowCount(0)
             self._set_enabled(False)
             return

@@ -116,3 +116,55 @@ def test_import_ignores_days_outside_month(db):
     count, _ = xi.apply_import(db, 2026, 9, rows)
     assert count == 1
     assert db.month_entries(2026, 9) == {(emp, dt.date(2026, 9, 30)): "D"}
+
+
+def test_matching_never_uses_first_names(db):
+    """Dwie Ewy na oddziale to norma — imię nie może decydować o dopasowaniu."""
+    db.add_employee("Przykładowa", "Ewa")
+    rows = [xi.ImportedRow(source_name="Mazurek Ewa", entries={1: "D"})]
+    xi.match_employees(rows, db.employees())
+    assert rows[0].employee_id is None
+    assert rows[0].create_new
+
+
+def test_matching_is_case_and_diacritic_insensitive(db):
+    emp = db.add_employee("Dudzińska", "Aneta")
+    rows = [xi.ImportedRow(source_name="DUDZINSKA ANETA", entries={1: "D"})]
+    xi.match_employees(rows, db.employees())
+    assert rows[0].employee_id == emp
+
+
+def test_matching_by_surname_alone_when_unambiguous(db):
+    emp = db.add_employee("Mazurek", "Ewa")
+    db.add_employee("Testowy", "Jan")
+    for source in ("Mazurek", "Mazurek A.", "1. Mazurek Ewa"):
+        rows = [xi.ImportedRow(source_name=source, entries={1: "D"})]
+        xi.match_employees(rows, db.employees())
+        assert rows[0].employee_id == emp, source
+
+
+def test_shared_surname_is_left_for_the_user_to_decide(db):
+    """Przy dwóch osobach o tym samym nazwisku zgadywanie byłoby ryzykowne."""
+    db.add_employee("Nowak", "Anna")
+    db.add_employee("Nowak", "Maria")
+    rows = [xi.ImportedRow(source_name="Nowak", entries={1: "D"})]
+    xi.match_employees(rows, db.employees())
+    assert rows[0].employee_id is None
+
+    # Pełne imię i nazwisko nadal rozstrzyga jednoznacznie.
+    rows = [xi.ImportedRow(source_name="Nowak Maria", entries={1: "D"})]
+    xi.match_employees(rows, db.employees())
+    assert rows[0].employee_id is not None
+
+
+def test_unmatched_rows_default_to_creating_employees(db):
+    """Import ma sam zakładać brakujących pracowników."""
+    rows = [
+        xi.ImportedRow(source_name="Dejnek Agata", entries={1: "D"}),
+        xi.ImportedRow(source_name="Tryk Emilia", entries={2: "N"}),
+    ]
+    xi.match_employees(rows, db.employees())
+    assert all(r.create_new for r in rows)
+    count, created = xi.apply_import(db, 2026, 6, rows)
+    assert (count, created) == (2, 2)
+    assert {e["last_name"] for e in db.employees()} == {"Dejnek", "Tryk"}
