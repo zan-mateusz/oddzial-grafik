@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import shutil
 import sqlite3
 from pathlib import Path
 
@@ -83,32 +84,112 @@ def _parse_time(s: str | None) -> dt.time | None:
     return dt.time(int(hh), int(mm))
 
 
+class DatabaseTooNewError(RuntimeError):
+    """Plik danych pochodzi z nowszej wersji programu."""
+
+    def __init__(self, found: int, supported: int):
+        self.found = found
+        self.supported = supported
+        super().__init__(
+            f"Plik z grafikami został zapisany przez nowszą wersję programu "
+            f"(format {found}, ta wersja obsługuje {supported}).\n\n"
+            "Zainstaluj najnowszą wersję Grafiku. Otwarcie pliku starszym "
+            "programem mogłoby uszkodzić zapisane dane."
+        )
+
+
 class Database:
     def __init__(self, path: str | Path):
         self.path = Path(path)
+        self.last_upgrade_backup: Path | None = None
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(self.path)
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA foreign_keys = ON")
+        # Wersję sprawdzamy przed jakimkolwiek zapisem — starszy program nie może
+        # nawet dotknąć pliku zapisanego przez nowszą wersję.
+        existing = self._stored_version()
+        if existing is not None and existing > SCHEMA_VERSION:
+            self.conn.close()
+            raise DatabaseTooNewError(existing, SCHEMA_VERSION)
         self.conn.executescript(SCHEMA)
-        self._init_meta()
+        self._init_meta(existing)
         self.conn.commit()
 
-    def _init_meta(self) -> None:
-        cur = self.conn.execute("SELECT value FROM meta WHERE key='schema_version'")
-        row = cur.fetchone()
+    def _stored_version(self) -> int | None:
+        """Wersja formatu zapisana w pliku; None dla nowego lub pustego pliku."""
+        try:
+            row = self.conn.execute(
+                "SELECT value FROM meta WHERE key='schema_version'"
+            ).fetchone()
+        except sqlite3.OperationalError:
+            return None            # brak tabeli meta — plik jeszcze nie istnieje
         if row is None:
+            return None
+        try:
+            return int(row["value"])
+        except (TypeError, ValueError):
+            return None
+
+    def _init_meta(self, existing: int | None) -> None:
+        if existing is None:
             self.conn.execute(
-                "INSERT INTO meta(key, value) VALUES('schema_version', ?)",
+                "INSERT INTO meta(key, value) VALUES('schema_version', ?) "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                 (str(SCHEMA_VERSION),),
             )
             self.seed_shift_types()
             self.seed_floors()
         else:
-            self._migrate(int(row["value"]))
+            self._migrate(existing)
+
+    def backup_before_upgrade(self, version: int) -> Path | None:
+        """Kopiuje plik danych przed zmianą jego formatu.
+
+        Aktualizacja programu potrafi przebudować bazę. Gdyby coś poszło nie
+        tak, nietknięta kopia sprzed zmiany zostaje obok.
+        """
+        if not self.path.exists() or self.path.stat().st_size == 0:
+            return None
+        stamp = dt.datetime.now().strftime("%Y-%m-%d_%H%M%S")
+        target = self.path.parent / "kopie" / f"przed_aktualizacja_{version}_{stamp}.db"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        self.conn.commit()
+        shutil.copy2(self.path, target)
+        return target
+
+    def autobackup(self, keep: int = 15, min_interval_days: int = 2) -> Path | None:
+        """Okresowa kopia zapasowa robiona przy uruchomieniu programu.
+
+        Użytkownik nie musi o niczym pamiętać, a w razie pomyłki jest do czego
+        wrócić. Starsze kopie są kasowane, żeby katalog nie rósł bez końca.
+        """
+        if not self.path.exists() or self.path.stat().st_size == 0:
+            return None
+        folder = self.path.parent / "kopie"
+        folder.mkdir(parents=True, exist_ok=True)
+
+        existing = sorted(folder.glob("auto_*.db"))
+        if existing:
+            newest = max(f.stat().st_mtime for f in existing)
+            age_days = (dt.datetime.now().timestamp() - newest) / 86400
+            if age_days < min_interval_days:
+                return None
+
+        stamp = dt.datetime.now().strftime("%Y-%m-%d_%H%M")
+        target = folder / f"auto_{stamp}.db"
+        self.conn.commit()
+        shutil.copy2(self.path, target)
+
+        for old in sorted(folder.glob("auto_*.db"))[:-keep]:
+            old.unlink(missing_ok=True)
+        return target
 
     def _migrate(self, version: int) -> None:
         """Uaktualnia starszą bazę bez utraty danych."""
+        if version == SCHEMA_VERSION:
+            return
+        self.last_upgrade_backup = self.backup_before_upgrade(version)
         if version < 2:
             self._add_column("employees", "floor_id", "INTEGER REFERENCES floors(id)")
             self._add_column("entries", "floor_id", "INTEGER REFERENCES floors(id)")

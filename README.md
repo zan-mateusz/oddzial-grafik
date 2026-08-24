@@ -129,6 +129,29 @@ That yields `dist\Grafik\Grafik.exe` (directory build) and
 & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=1.0.0 packaging\grafik.iss
 ```
 
+### Shipping updates
+
+The database never travels with the executable. It lives in `%APPDATA%\Grafik\`
+and the installer only writes to `%PROGRAMFILES%`, so reinstalling or replacing
+the exe cannot touch her rota data. `CloseApplications=yes` lets an upgrade
+proceed while the program is running.
+
+The real hazard in an update is a **schema migration** rewriting the file in
+place. Three guards:
+
+- **Automatic pre-upgrade backup.** Before any migration the file is copied to
+  `kopie/przed_aktualizacja_<ver>_<timestamp>.db`, and the user is told where.
+- **Downgrade refusal.** An older build opening a newer file raises
+  `DatabaseTooNewError` and exits with an explanation, *before writing anything*
+  — otherwise the old `CREATE TABLE IF NOT EXISTS` pass would partially rewrite
+  a file it doesn't understand.
+- **Rotating autobackup.** Every couple of days on launch, keeping the newest
+  15. Only `auto_*.db` files are rotated; manual and pre-upgrade copies are
+  never deleted.
+
+When adding a migration, bump `SCHEMA_VERSION` in `app/db.py` and extend
+`_migrate()`. `tests/test_data_safety.py` covers the guarantees.
+
 ### SmartScreen
 
 The executables are unsigned, so Windows shows *"Windows protected your PC"* on

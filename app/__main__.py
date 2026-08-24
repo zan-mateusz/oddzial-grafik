@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
 
 from app import config
-from app.db import Database
+from app.db import Database, DatabaseTooNewError
 from app.ui.main_window import MainWindow
 
 
@@ -39,6 +40,17 @@ def _light_palette() -> QPalette:
     pal.setColor(disabled, QPalette.ColorRole.ButtonText, QColor("#9AA0A6"))
     pal.setColor(disabled, QPalette.ColorRole.WindowText, QColor("#9AA0A6"))
     return pal
+
+
+def _show_error(title: str, message: str) -> None:
+    """Komunikat dla użytkownika, gdy program nie może wystartować."""
+    from PySide6.QtWidgets import QMessageBox
+
+    box = QMessageBox()
+    box.setIcon(QMessageBox.Icon.Critical)
+    box.setWindowTitle(title)
+    box.setText(message)
+    box.exec()
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -89,8 +101,26 @@ def main(argv: list[str] | None = None) -> int:
     qt_app.setStyle("Fusion")
     qt_app.setPalette(_light_palette())
 
-    db, mode = _open_database(args)
+    try:
+        db, mode = _open_database(args)
+    except DatabaseTooNewError as exc:
+        _show_error("Nowszy format danych", str(exc))
+        return 1
+    except sqlite3.DatabaseError as exc:
+        _show_error(
+            "Nie można otworzyć pliku z grafikami",
+            f"{exc}\n\nKopie zapasowe znajdziesz w katalogu:\n{config.backup_dir()}",
+        )
+        return 1
+
+    backup = db.autobackup()
     window = MainWindow(db)
+    if db.last_upgrade_backup is not None:
+        window.notify_upgrade_backup(db.last_upgrade_backup)
+    elif backup is not None:
+        window.statusBar().showMessage(
+            f"Utworzono automatyczną kopię zapasową: {backup.name}", 4000
+        )
     if mode == "demo":
         window.setWindowTitle("Grafik dyżurów — DANE PRZYKŁADOWE")
 

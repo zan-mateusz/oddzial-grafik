@@ -128,6 +128,16 @@ class MainWindow(QMainWindow):
             f"plik danych: {config.db_path()}"
         )
 
+    def notify_upgrade_backup(self, path) -> None:
+        """Informuje, że aktualizacja przebudowała plik danych."""
+        QMessageBox.information(
+            self, "Zaktualizowano plik z grafikami",
+            "Ta wersja programu używa nowszego formatu danych, więc plik "
+            "z grafikami został przebudowany.\n\n"
+            "Wszystkie dane zostały zachowane. Kopia sprzed aktualizacji leży "
+            f"na wszelki wypadek tutaj:\n{path}",
+        )
+
     def _show_saved(self) -> None:
         self.statusBar().showMessage("Zapisano", 1500)
 

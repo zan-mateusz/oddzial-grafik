@@ -23,6 +23,12 @@ WizardStyle=modern
 SetupIconFile=grafik.ico
 UninstallDisplayIcon={app}\{#AppExe}
 UninstallDisplayName={#AppName}
+; Aktualizacja przy uruchomionym programie: Inno zamyka go i wznawia,
+; zamiast zadac restartu komputera.
+CloseApplications=yes
+RestartApplications=yes
+; Grafiki leza w {userappdata}\Grafik i nie sa objete instalacja ani
+; odinstalowaniem - aktualizacja nadpisuje wylacznie pliki programu.
 
 [Languages]
 Name: "polski"; MessagesFile: "compiler:Languages\Polish.isl"
