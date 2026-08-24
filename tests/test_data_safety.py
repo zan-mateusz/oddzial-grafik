@@ -144,9 +144,22 @@ def test_autobackup_keeps_only_the_newest_copies(tmp_path):
 
 
 def test_autobackup_skips_an_empty_file(tmp_path):
+    """Pustego pliku nie ma po co kopiować.
+
+    Wskazujemy osobny plik zamiast skracać bazę w miejscu — Windows nie
+    pozwala pisać po pliku, który trzyma otwarty SQLite.
+    """
     db = Database(tmp_path / "grafik.db")
-    db.conn.commit()
-    (tmp_path / "grafik.db").write_bytes(b"")
+    empty = tmp_path / "pusty.db"
+    empty.write_bytes(b"")
+    db.path = empty
+    assert db.autobackup() is None
+    db.close()
+
+
+def test_autobackup_skips_a_missing_file(tmp_path):
+    db = Database(tmp_path / "grafik.db")
+    db.path = tmp_path / "nie-ma-takiego.db"
     assert db.autobackup() is None
     db.close()
 

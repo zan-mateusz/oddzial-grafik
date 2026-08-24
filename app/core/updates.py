@@ -207,14 +207,17 @@ def download(
     )
     digest = hashlib.sha256()
     downloaded = 0
+    aborted = False
+    # Windows nie pozwala usunąć pliku, dopóki jest otwarty, więc plik
+    # tymczasowy kasujemy dopiero po zamknięciu uchwytu.
     try:
         with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
             total = int(response.headers.get("Content-Length") or release.size or 0)
             with open(partial, "wb") as handle:
                 while True:
                     if cancelled is not None and cancelled():
-                        partial.unlink(missing_ok=True)
-                        raise UpdateError("Pobieranie zostało przerwane.")
+                        aborted = True
+                        break
                     chunk = response.read(256 * 1024)
                     if not chunk:
                         break
@@ -228,6 +231,10 @@ def download(
         raise UpdateError(
             "Pobieranie nie powiodło się — sprawdź połączenie z internetem."
         ) from exc
+
+    if aborted:
+        partial.unlink(missing_ok=True)
+        raise UpdateError("Pobieranie zostało przerwane.")
 
     wanted = expected_checksum(release.checksum_url, release.filename)
     if wanted and digest.hexdigest().lower() != wanted:

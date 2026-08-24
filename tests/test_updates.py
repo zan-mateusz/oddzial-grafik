@@ -279,3 +279,29 @@ def test_corrupted_last_check_date_forces_a_check(tmp_path):
     db.set_setting("update_last_check", "nonsens")
     assert ud.should_check_today(db)
     db.close()
+
+
+def test_cancelled_download_removes_the_partial_file(payload_service, tmp_path):
+    """Windows nie pozwala usunąć otwartego pliku — plik częściowy musi być
+    najpierw zamknięty, a dopiero potem skasowany."""
+    with pytest.raises(UpdateError, match="przerwane"):
+        updates.download(_release(), tmp_path, cancelled=lambda: True)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_cancelling_after_data_was_written_cleans_up(payload_service, tmp_path):
+    """Przerwanie po zapisaniu części danych też nie zostawia śmieci.
+
+    Udawana odpowiedź mieści się w jednym odczycie, więc anulujemy dopiero
+    przy drugim sprawdzeniu — wtedy plik częściowy istnieje już na dysku.
+    """
+    calls = {"n": 0}
+
+    def cancel_on_second_check():
+        calls["n"] += 1
+        return calls["n"] > 1
+
+    with pytest.raises(UpdateError, match="przerwane"):
+        updates.download(_release(), tmp_path, cancelled=cancel_on_second_check)
+    assert calls["n"] > 1, "anulowanie nie zostało w ogóle sprawdzone"
+    assert list(tmp_path.iterdir()) == []

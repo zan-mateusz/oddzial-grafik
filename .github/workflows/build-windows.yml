@@ -24,7 +24,15 @@ jobs:
       - name: Run tests
         env:
           QT_QPA_PLATFORM: offscreen
-        run: python -m pytest tests -q
+        run: python -m pytest tests -q --tb=short --junitxml=test-report.xml
+
+      - name: Publish test report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: test-report.xml
+          if-no-files-found: ignore
 
       - name: Determine version
         id: version
