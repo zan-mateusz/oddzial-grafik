@@ -7,7 +7,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QLocale
+from PySide6.QtCore import QLocale, QTimer
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
 
@@ -133,6 +133,8 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
 
     window.show()
+    # Sprawdzenie w tle dopiero po pokazaniu okna, żeby start nie zwalniał.
+    QTimer.singleShot(2500, window.maybe_check_updates)
     return qt_app.exec()
 
 

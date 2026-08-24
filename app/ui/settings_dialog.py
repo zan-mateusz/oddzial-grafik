@@ -4,9 +4,9 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 
 from PySide6.QtWidgets import (
-    QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGroupBox, QHBoxLayout,
-    QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox,
-    QPushButton, QVBoxLayout,
+    QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGroupBox,
+    QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem,
+    QMessageBox, QPushButton, QVBoxLayout,
 )
 
 from app.core.calendar_pl import NORM_MEDICAL_MINUTES, NORM_STANDARD_MINUTES
@@ -36,16 +36,25 @@ class SettingsDialog(QDialog):
                 self.cmb_norm.setCurrentIndex(i)
                 break
 
+        self.ed_repo = QLineEdit(db.get_setting("update_repo", ""))
+        self.ed_repo.setPlaceholderText("np. nazwa-uzytkownika/grafik")
+        self.chk_updates = QCheckBox("Sprawdzaj aktualizacje przy uruchomieniu")
+        self.chk_updates.setChecked(db.get_setting("update_check_enabled", "1") != "0")
+
         form = QFormLayout()
         form.addRow("Nazwa oddziału", self.ed_ward)
         form.addRow("Dobowa norma czasu pracy", self.cmb_norm)
+        form.addRow("Adres aktualizacji", self.ed_repo)
+        form.addRow("", self.chk_updates)
 
         self.floors_box = self._build_floors_box()
 
         hint = QLabel(
             "Norma dobowa służy do wyliczenia miesięcznego wymiaru czasu pracy "
-            "oraz nadgodzin. Dla pielęgniarek i pozostałego personelu medycznego "
-            "wynosi 7 godz. 35 min."
+            "oraz nadgodzin; pozostałe reguły znajdziesz na zakładce Zasady. "
+            "Adres aktualizacji to nazwa repozytorium, w którym publikowane są "
+            "nowe wersje programu — zostaw puste, jeśli aktualizacje mają być "
+            "wyłączone."
         )
         hint.setWordWrap(True)
         hint.setStyleSheet("color:#555;")
@@ -147,6 +156,18 @@ class SettingsDialog(QDialog):
         self._reload_floors()
 
     def _save(self) -> None:
+        repo = self.ed_repo.text().strip().strip("/")
+        if repo and repo.count("/") != 1:
+            QMessageBox.warning(
+                self, "Adres aktualizacji",
+                "Adres podaje się w postaci nazwa-uzytkownika/nazwa-repozytorium, "
+                "np. kowalski/grafik.",
+            )
+            return
         self.db.set_setting("ward_name", self.ed_ward.text().strip())
         self.db.set_setting("daily_norm_minutes", str(self.cmb_norm.currentData()))
+        self.db.set_setting("update_repo", repo)
+        self.db.set_setting(
+            "update_check_enabled", "1" if self.chk_updates.isChecked() else "0"
+        )
         self.accept()

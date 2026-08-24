@@ -441,16 +441,47 @@ Przed zmianą komputera skopiuj cały ten katalog.
 
 ## Aktualizacja programu
 
-Gdy dostaniesz nowszą wersję, po prostu uruchom nowy instalator — nie
-trzeba wcześniej odinstalowywać starego. **Grafiki, pracownicy i ustawienia
-zostają nietknięte**, ponieważ dane są zapisane w innym miejscu niż sam
-program.
+Program sam sprawdza, czy jest nowsza wersja — najwyżej raz dziennie,
+w tle, zaraz po uruchomieniu. Gdy coś znajdzie, pokaże okno z opisem zmian
+i pytaniem, czy pobrać.
 
-Jeżeli używasz wersji przenośnej (jeden plik), zamknij program i zastąp
-stary plik nowym.
+### Gdy pojawi się pytanie o aktualizację
+
+1. Przeczytaj, co się zmieniło.
+2. Kliknij **Pobierz i zainstaluj**. Pasek pokaże postęp pobierania.
+3. Po pobraniu kliknij **Zainstaluj i uruchom ponownie**. Program zamknie
+    się, a instalator zrobi resztę i uruchomi nową wersję.
+
+Jeżeli wybierzesz **Nie teraz**, program nie będzie o tę wersję pytał
+ponownie — zapyta dopiero, gdy pojawi się następna. W każdej chwili możesz
+sprawdzić samodzielnie: **Pomoc → Sprawdź aktualizacje**.
+
+### Czy stracę grafiki
+
+**Nie.** Aktualizacja zmienia wyłącznie sam program. Grafiki, pracownicy,
+definicje zmian i ustawienia leżą w innym miejscu i pozostają nietknięte.
 
 Gdyby nowa wersja musiała zmienić sposób zapisu danych, zrobi to sama,
 powiadomi Cię o tym i **zostawi kopię sprzed aktualizacji**.
+
+### Wersja przenośna
+
+Jeśli używasz wersji przenośnej (jeden plik, bez instalacji), program też
+pobierze nową wersję, ale podmienić plik trzeba samodzielnie: zamknij program
+i zastąp stary plik pobranym. Przycisk **Pokaż pobrany plik** otworzy
+katalog, w którym się znajduje.
+
+### Bezpieczeństwo
+
+Pobrany plik jest sprawdzany sumą kontrolną opublikowaną razem z wydaniem.
+Jeżeli się nie zgadza, program go **nie uruchomi** i poprosi o ponowną
+próbę.
+
+### Wyłączenie sprawdzania
+
+W **Narzędzia → Ustawienia** możesz odznaczyć **Sprawdzaj aktualizacje
+przy uruchomieniu**. Program przestanie wtedy łączyć się z internetem;
+sprawdzenie ręczne z menu nadal będzie działać.
 
 > Nie wracaj do starszej wersji programu po tym, jak nowsza
 przebudowała dane — starszy program odmówi otwarcia pliku, żeby go nie
@@ -513,6 +544,18 @@ w **Narzędzia → Ustawienia**.
 
 Zaznaczona opcja **Zastąp istniejące wpisy** usuwa dotychczasowy grafik
 wybranego miesiąca i piętra. Odznacz ją, jeśli chcesz tylko dołożyć dane.
+
+### Program pyta o aktualizację przy każdym uruchomieniu
+
+Nie powinien. Jeśli raz wybierzesz **Nie teraz**, o tę wersję już nie
+zapyta. Ponowne pytanie oznacza, że pojawiła się kolejna nowa wersja.
+Sprawdzanie można wyłączyć w **Narzędzia → Ustawienia**.
+
+### Aktualizacja nie działa
+
+Sprawdź w **Narzędzia → Ustawienia**, czy wypełnione jest pole
+**Adres aktualizacji**. Bez niego program nie wie, skąd pobierać nowe
+wersje. Potrzebne jest też połączenie z internetem.
 
 ### Gdzie są moje dane
 

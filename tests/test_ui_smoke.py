@@ -140,3 +140,53 @@ def test_help_menu_opens_the_manual_once(qapp, db):
     window.show_manual("kopie")
     assert window._manual is first        # jedno okno, nie kolejne kopie
     window.close()
+
+
+def test_update_dialog_builds(qapp):
+    from app.core.updates import Release
+    from app.ui.update_dialog import UpdateDialog
+
+    release = Release(
+        version="1.1.0", notes="Poprawki liczenia urlopu.",
+        download_url="https://example/x.exe",
+        filename="Grafik-Instalator-1.1.0.exe", size=90 * 1024 * 1024,
+    )
+    dialog = UpdateDialog(release)
+    assert "1.1.0" in dialog.btn_action.text() or dialog.btn_action.isEnabled()
+    assert not dialog.bar.isVisible()
+    dialog.close()
+
+
+def test_update_menu_without_a_configured_source_explains_itself(qapp, db, monkeypatch):
+    """Bez ustawionego adresu program tłumaczy, co zrobić — nie sięga do sieci."""
+    from PySide6.QtWidgets import QMessageBox
+
+    from app.ui.main_window import MainWindow
+
+    shown = []
+    monkeypatch.setattr(QMessageBox, "information",
+                        lambda *a, **k: shown.append(a[-1]))
+    window = MainWindow(db)
+    window.check_updates()
+    assert shown and "Ustawienia" in shown[0]
+    assert window._update_thread is None     # nie odpytano serwisu
+    window.close()
+
+
+def test_settings_dialog_validates_the_update_address(qapp, db, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    from app.ui.settings_dialog import SettingsDialog
+
+    warned = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: warned.append(a[-1]))
+    dialog = SettingsDialog(db)
+    dialog.ed_repo.setText("bez-ukosnika")
+    dialog._save()
+    assert warned, "zły adres powinien zostać odrzucony"
+
+    warned.clear()
+    dialog.ed_repo.setText("kowalski/grafik")
+    dialog._save()
+    assert not warned
+    assert db.get_setting("update_repo") == "kowalski/grafik"

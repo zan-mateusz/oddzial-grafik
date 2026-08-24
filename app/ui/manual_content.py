@@ -399,14 +399,43 @@ Przed zmianą komputera skopiuj cały ten katalog.</p>
 
 ("aktualizacja", "Aktualizacja programu", """
 <h2>Aktualizacja programu</h2>
-<p>Gdy dostaniesz nowszą wersję, po prostu uruchom nowy instalator — nie
-trzeba wcześniej odinstalowywać starego. <b>Grafiki, pracownicy i ustawienia
-zostają nietknięte</b>, ponieważ dane są zapisane w innym miejscu niż sam
-program.</p>
-<p>Jeżeli używasz wersji przenośnej (jeden plik), zamknij program i zastąp
-stary plik nowym.</p>
+<p>Program sam sprawdza, czy jest nowsza wersja — najwyżej raz dziennie,
+w tle, zaraz po uruchomieniu. Gdy coś znajdzie, pokaże okno z opisem zmian
+i pytaniem, czy pobrać.</p>
+
+<h3>Gdy pojawi się pytanie o aktualizację</h3>
+<ol>
+<li>Przeczytaj, co się zmieniło.</li>
+<li>Kliknij <b>Pobierz i zainstaluj</b>. Pasek pokaże postęp pobierania.</li>
+<li>Po pobraniu kliknij <b>Zainstaluj i uruchom ponownie</b>. Program zamknie
+    się, a instalator zrobi resztę i uruchomi nową wersję.</li>
+</ol>
+<p>Jeżeli wybierzesz <b>Nie teraz</b>, program nie będzie o tę wersję pytał
+ponownie — zapyta dopiero, gdy pojawi się następna. W każdej chwili możesz
+sprawdzić samodzielnie: <b>Pomoc → Sprawdź aktualizacje</b>.</p>
+
+<h3>Czy stracę grafiki</h3>
+<p><b>Nie.</b> Aktualizacja zmienia wyłącznie sam program. Grafiki, pracownicy,
+definicje zmian i ustawienia leżą w innym miejscu i pozostają nietknięte.</p>
 <p>Gdyby nowa wersja musiała zmienić sposób zapisu danych, zrobi to sama,
 powiadomi Cię o tym i <b>zostawi kopię sprzed aktualizacji</b>.</p>
+
+<h3>Wersja przenośna</h3>
+<p>Jeśli używasz wersji przenośnej (jeden plik, bez instalacji), program też
+pobierze nową wersję, ale podmienić plik trzeba samodzielnie: zamknij program
+i zastąp stary plik pobranym. Przycisk <b>Pokaż pobrany plik</b> otworzy
+katalog, w którym się znajduje.</p>
+
+<h3>Bezpieczeństwo</h3>
+<p>Pobrany plik jest sprawdzany sumą kontrolną opublikowaną razem z wydaniem.
+Jeżeli się nie zgadza, program go <b>nie uruchomi</b> i poprosi o ponowną
+próbę.</p>
+
+<h3>Wyłączenie sprawdzania</h3>
+<p>W <b>Narzędzia → Ustawienia</b> możesz odznaczyć <b>Sprawdzaj aktualizacje
+przy uruchomieniu</b>. Program przestanie wtedy łączyć się z internetem;
+sprawdzenie ręczne z menu nadal będzie działać.</p>
+
 <p class="warn">Nie wracaj do starszej wersji programu po tym, jak nowsza
 przebudowała dane — starszy program odmówi otwarcia pliku, żeby go nie
 uszkodzić.</p>
@@ -464,6 +493,16 @@ w <b>Narzędzia → Ustawienia</b>.</p>
 <h3>Program pyta o zastąpienie wpisów przy imporcie</h3>
 <p>Zaznaczona opcja <b>Zastąp istniejące wpisy</b> usuwa dotychczasowy grafik
 wybranego miesiąca i piętra. Odznacz ją, jeśli chcesz tylko dołożyć dane.</p>
+
+<h3>Program pyta o aktualizację przy każdym uruchomieniu</h3>
+<p>Nie powinien. Jeśli raz wybierzesz <b>Nie teraz</b>, o tę wersję już nie
+zapyta. Ponowne pytanie oznacza, że pojawiła się kolejna nowa wersja.
+Sprawdzanie można wyłączyć w <b>Narzędzia → Ustawienia</b>.</p>
+
+<h3>Aktualizacja nie działa</h3>
+<p>Sprawdź w <b>Narzędzia → Ustawienia</b>, czy wypełnione jest pole
+<b>Adres aktualizacji</b>. Bez niego program nie wie, skąd pobierać nowe
+wersje. Potrzebne jest też połączenie z internetem.</p>
 
 <h3>Gdzie są moje dane</h3>
 <p>Ścieżkę do pliku widać na pasku na dole okna. Kopie zapasowe leżą

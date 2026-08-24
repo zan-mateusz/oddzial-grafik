@@ -159,6 +159,41 @@ That yields `dist\Grafik\Grafik.exe` (directory build) and
 & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=1.0.0 packaging\grafik.iss
 ```
 
+### In-app updates
+
+The app can update itself from GitHub Releases. Set **Adres aktualizacji** in
+Narzędzia → Ustawienia to `owner/repo` (public repository — the API is queried
+anonymously, so no token is embedded in the distributed exe).
+
+Publishing an update is then just:
+
+```bash
+git tag v1.1.0 && git push --tags
+```
+
+The workflow stamps `v1.1.0` into `app/version.py` **before** PyInstaller runs,
+builds both artifacts, publishes `SHA256SUMS.txt` alongside them, and attaches
+everything to the release. The release body becomes the "what changed" text the
+user sees, so write it for her.
+
+How it behaves:
+
+- Checks in a background thread ~2.5 s after launch, at most **once a day**.
+- Offers each version **once** — declining records the version and stays quiet
+  until the next one. Manual check any time via Pomoc → Sprawdź aktualizacje.
+- Picks the installer or the portable asset to match how it is running.
+  Installed builds run the installer with `/SILENT` and quit; portable builds
+  download the new exe and open the folder, since a running exe can't replace
+  itself.
+- **Verifies SHA-256** against `SHA256SUMS.txt` before executing anything, and
+  refuses to run a mismatched file.
+- Fails silently on the startup check (no network, no repo configured) and only
+  reports errors when the user asked explicitly.
+- Can be switched off entirely in settings; the app then makes no network
+  requests at all.
+
+Running from source never self-updates.
+
 ### Shipping updates
 
 The database never travels with the executable. It lives in `%APPDATA%\Grafik\`

@@ -6,7 +6,7 @@ import shutil
 
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
-    QApplication, QFileDialog, QMainWindow, QMessageBox, QTabWidget,
+    QApplication, QDialog, QFileDialog, QMainWindow, QMessageBox, QTabWidget,
 )
 
 from app import config
@@ -17,6 +17,7 @@ from app.ui.rota_view import RotaView
 from app.ui.rules_view import RulesView
 from app.ui.settings_dialog import SettingsDialog
 from app.ui.shift_types_view import ShiftTypesView
+from app.version import __version__
 
 ABOUT = """
 <h3>Grafik dyżurów</h3>
@@ -86,6 +87,8 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.tabs)
 
         self._build_menu()
+        self._update_thread = None
+        self._update_worker = None
         self.rota_view.dataEdited.connect(self._show_saved)
         self.rota_view.monthChanged.connect(lambda *_: self._update_status())
         self._update_status()
@@ -116,7 +119,9 @@ class MainWindow(QMainWindow):
         menu_help = self.menuBar().addMenu("Pomo&c")
         self._add(menu_help, "Instrukcja obsługi", self.show_manual, "F1")
         menu_help.addSeparator()
+        self._add(menu_help, "Sprawdź aktualizacje", self.check_updates)
         self._add(menu_help, "Krótka ściągawka", self.show_about)
+        self._add(menu_help, "O programie", self.show_version)
 
     def _add(self, menu, text: str, slot, shortcut: str | None = None) -> QAction:
         action = QAction(text, self)
@@ -325,6 +330,91 @@ class MainWindow(QMainWindow):
         self._manual.show()
         self._manual.raise_()
         self._manual.activateWindow()
+
+    # --- aktualizacje -------------------------------------------------------
+
+    def check_updates(self) -> None:
+        """Sprawdzenie wywołane z menu — pokazuje wynik także, gdy nic nie ma."""
+        self._run_update_check(quiet=False)
+
+    def maybe_check_updates(self) -> None:
+        """Ciche sprawdzenie przy starcie, najwyżej raz na dobę."""
+        from app.core.updates import can_self_update
+        from app.ui.update_dialog import should_check_today
+
+        if not can_self_update() or not should_check_today(self.db):
+            return
+        self._run_update_check(quiet=True)
+
+    def _run_update_check(self, quiet: bool) -> None:
+        from app.core.updates import can_self_update
+        from app.ui.update_dialog import mark_checked, start_check
+
+        repo = self.db.get_setting("update_repo", "")
+        if not repo:
+            if not quiet:
+                QMessageBox.information(
+                    self, "Aktualizacje",
+                    "Nie ustawiono, skąd pobierać aktualizacje.\n\n"
+                    "Uzupełnij pole „Adres aktualizacji” w Narzędzia → Ustawienia "
+                    "(np. nazwa-uzytkownika/grafik).",
+                )
+            return
+        if not can_self_update() and not quiet:
+            QMessageBox.information(
+                self, "Aktualizacje",
+                "Program działa z plików źródłowych, więc nie może zaktualizować "
+                "się sam.",
+            )
+            return
+
+        mark_checked(self.db)
+        if not quiet:
+            self.statusBar().showMessage("Sprawdzanie aktualizacji…", 4000)
+        self._update_thread, self._update_worker = start_check(
+            self,
+            repo,
+            on_found=lambda release: self._on_update_result(release, quiet),
+            on_failed=lambda message: self._on_update_error(message, quiet),
+        )
+
+    def _on_update_result(self, release, quiet: bool) -> None:
+        from app.ui.update_dialog import UpdateDialog, dismiss, was_dismissed
+
+        if release is None:
+            if not quiet:
+                QMessageBox.information(
+                    self, "Aktualizacje",
+                    f"Masz najnowszą wersję programu ({__version__}).",
+                )
+            return
+        if quiet and was_dismissed(self.db, release.version):
+            return
+        dialog = UpdateDialog(release, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            # Odmowa dotyczy tej konkretnej wersji — przy następnej zapytamy znowu.
+            dismiss(self.db, release.version)
+
+    def _on_update_error(self, message: str, quiet: bool) -> None:
+        if quiet:
+            return
+        QMessageBox.warning(self, "Aktualizacje", message)
+
+    def show_version(self) -> None:
+        from app.core.updates import install_kind
+
+        kinds = {
+            "installer": "wersja zainstalowana",
+            "portable": "wersja przenośna",
+            "source": "uruchomiona z plików źródłowych",
+        }
+        QMessageBox.about(
+            self, "O programie",
+            f"<h3>Grafik dyżurów</h3>"
+            f"<p>Wersja <b>{__version__}</b><br>"
+            f"<span style='color:#555'>{kinds.get(install_kind(), '')}</span></p>"
+            f"<p>Plik danych:<br><code>{config.db_path()}</code></p>",
+        )
 
     def show_about(self) -> None:
         QMessageBox.about(self, "Krótka ściągawka", ABOUT)
