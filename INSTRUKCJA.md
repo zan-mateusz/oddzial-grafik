@@ -108,8 +108,9 @@ jeśli będzie potrzebne.
 | **Wymiar** | ile godzin przypada do przepracowania (etat, urlopy, święta) |
 | **Bilans** | nadgodziny na pomarańczowo, niedogodziny na czerwono |
 | **Dyż.** | liczba dyżurów |
-| **Noc** | godziny w porze nocnej (21:00–7:00) |
-| **Urlop**, **L4** | liczba dni |
+| **Noc** | godziny w porze nocnej (domyślnie 22:00–6:00) |
+| **Święta** | godziny przepracowane w święta ustawowo wolne od pracy |
+| **Urlop**, **L4** | liczba **zużytych** dni (patrz niżej) |
 
 Wymiar zmniejsza się automatycznie za każde święto wypadające poza niedzielą
 oraz za dni urlopu i zwolnienia.
@@ -118,6 +119,48 @@ Kolumny **Godziny**, **Wymiar** i **Bilans** liczą cały miesiąc niezależnie 
 piętra — pracownik ma jedną umowę i jeden wymiar czasu pracy. Kolumny z „tu"
 pokazują, ile z tego przypadło na oglądane piętro. Przy jednym piętrze kolumny
 „tu" w ogóle się nie pojawiają.
+
+## Zasady liczenia godzin
+
+Zakładka **Zasady** pokazuje wszystkie reguły, według których program przelicza
+grafik na godziny, razem z podstawą prawną. Każdą z nich można zmienić.
+
+### Pora nocna
+
+Kodeks pracy mówi, że pora nocna to **8 godzin mieszczących się między 21:00
+a 7:00**, a konkretne godziny ustala pracodawca w regulaminie pracy
+(art. 151⁷ § 1). Program przyjmuje **22:00–6:00**. Dyżur nocny 19:00–7:00 daje
+przy tym ustawieniu 8 godzin pory nocnej — nie 12.
+
+Jeśli na oddziale obowiązuje inny przedział, zmień godzinę początkową; koniec
+wyliczy się sam, bo okno zawsze trwa 8 godzin.
+
+### Urlop
+
+Urlopu udziela się **tylko w dni, które są dla pracownika dniami pracy**
+(art. 154² § 1). Dlatego wpis `U` postawiony w sobotę, niedzielę albo święto
+**nie zużywa urlopu**.
+
+Przykład: `U` wpisane przez 15 kolejnych dni kalendarzowych, od poniedziałku,
+to **11 dni urlopu** — dwa pełne tygodnie po 5 dni roboczych plus jeden dzień.
+Gdyby w tym okresie wypadło święto, byłoby to 10 dni.
+
+Każdy zużyty dzień urlopu to **7 godz. 35 min** i o tyle obniża się wymiar
+czasu pracy do przepracowania (art. 130 § 3). Dzięki temu urlop nie tworzy
+sztucznych niedogodzin. W kolumnie **Urlop** widać liczbę zużytych dni;
+najedź myszką, żeby zobaczyć, ile wpisów pominięto jako przypadające
+w dni wolne.
+
+Tak samo liczone jest zwolnienie lekarskie.
+
+### Praca w święta
+
+Godziny przepracowane w święta ustawowo wolne od pracy są zliczane w osobnej
+kolumnie **Święta**, bo przysługuje za nie dzień wolny albo dodatek
+(art. 151¹¹). Godziny niedzielne pokazuje podpowiedź nad tą kolumną.
+
+Pamiętaj: święto obniża wymiar czasu pracy nawet wtedy, gdy ktoś tego dnia
+pracuje — wypracowane godziny stają się wówczas nadgodzinami.
 
 ## Zapisywanie i wydruk
 

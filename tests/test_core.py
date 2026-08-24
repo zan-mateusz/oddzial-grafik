@@ -10,6 +10,7 @@ from app.core.shifts import (
     DEFAULT_SHIFT_TYPES, fmt_duration_label, fmt_minutes, parse_duration,
     parse_freeform, resolve, span_minutes,
 )
+from app.core.rules import Rules
 from app.core.stats import night_minutes, summarize_month
 
 TYPES = {t.code: t for t in DEFAULT_SHIFT_TYPES}
@@ -136,11 +137,27 @@ def test_resolve_empty_is_none():
 
 
 @pytest.mark.parametrize("start,end,expected", [
-    ((19, 0), (7, 0), 600), ((7, 0), (19, 0), 0), ((22, 0), (6, 0), 480),
-    ((14, 0), (21, 35), 35), ((6, 0), (8, 0), 60),
+    ((19, 0), (7, 0), 480),     # dyżur nocny mieści całe 8 godzin pory nocnej
+    ((7, 0), (19, 0), 0),
+    ((22, 0), (6, 0), 480),
+    ((14, 0), (21, 35), 0),     # kończy się przed 22:00
+    ((6, 0), (8, 0), 0),
+    ((20, 0), (23, 0), 60),
 ])
-def test_night_minutes(start, end, expected):
+def test_night_minutes_uses_the_default_window(start, end, expected):
+    """Domyślna pora nocna to 22:00-6:00 — 8 godzin, jak wymaga art. 151(7)."""
     assert night_minutes(dt.time(*start), dt.time(*end)) == expected
+
+
+@pytest.mark.parametrize("window_start,start,end,expected", [
+    ((21, 0), (19, 0), (7, 0), 480),
+    ((21, 0), (14, 0), (21, 35), 35),
+    ((23, 0), (19, 0), (7, 0), 480),
+    ((23, 0), (22, 0), (6, 0), 420),
+])
+def test_night_minutes_follows_the_configured_window(window_start, start, end, expected):
+    rules = Rules().with_night_window(dt.time(*window_start))
+    assert night_minutes(dt.time(*start), dt.time(*end), rules) == expected
 
 
 def test_fmt_minutes_keeps_sign():
@@ -170,6 +187,7 @@ def test_summary_counts_hours_and_balance():
 
 def test_leave_reduces_individual_norm():
     full = summarize_month(2026, 8, [_emp(1)], {})[1]
+    # 3-7 sierpnia 2026 to poniedziałek-piątek, bez świąt.
     entries = {(1, dt.date(2026, 8, d)): resolve("U", TYPES) for d in range(3, 8)}
     with_leave = summarize_month(2026, 8, [_emp(1)], entries)[1]
     assert with_leave.leave_days == 5
@@ -196,4 +214,4 @@ def test_night_shift_hours_land_on_starting_day():
     entries = {(1, dt.date(2026, 8, 31)): resolve("N", TYPES)}
     s = summarize_month(2026, 8, [_emp(1)], entries)[1]
     assert s.worked_minutes == 720
-    assert s.night_minutes == 600
+    assert s.night_minutes == 480

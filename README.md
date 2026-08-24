@@ -17,8 +17,21 @@ calculated automatically.
   (`8-14`, `19-7`) are accepted too. Days off are left blank.
 - **Any month, past or future** — every month is kept; navigate freely.
 - **Automatic totals** — hours worked, statutory monthly norm (art. 130 K.p.,
-  7 h 35 min/day for medical staff), overtime balance, night hours
-  (21:00–07:00), shift count, leave and sick days.
+  7 h 35 min/day for medical staff), overtime balance, night hours, holiday
+  hours, shift count, leave and sick days.
+- **Editable rules with legal basis** — a *Zasady* tab exposing every rule the
+  hour arithmetic depends on, each annotated with the article it comes from:
+  - **Night window.** Art. 151⁷ § 1 defines *pora nocna* as 8 hours chosen by
+    the employer **within** 21:00–7:00 — not the whole 10-hour span. Default
+    22:00–06:00, so a 19:00–07:00 shift credits 8 h. Only the start is edited;
+    the end follows, and windows that aren't exactly 8 h inside the span are
+    rejected.
+  - **Leave.** Art. 154² § 1 grants leave only on days that are working days,
+    so `U` on a Saturday, Sunday or public holiday consumes nothing. 15
+    consecutive calendar days of leave from a Monday = 11 days used, or 10 if a
+    holiday falls inside. Each day used is one daily norm and reduces the month
+    norm (art. 130 § 3), so leave never manufactures a deficit.
+  - **Daily norm**, and whether leave/sickness reduce the norm at all.
 - **Day colouring** — Saturdays, Sundays and public holidays are shaded
   distinctly. Nurses work through holidays; the colours are for visibility, and
   the holiday still reduces the contractual norm as the law requires.

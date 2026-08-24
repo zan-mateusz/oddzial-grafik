@@ -373,7 +373,8 @@ class RotaView(QWidget):
         self._resize_columns()
 
     def _refresh_footer(self) -> None:
-        norm = month_norm(self.model.year, self.model.month, self.model.daily_norm)
+        norm = month_norm(self.model.year, self.model.month,
+                          self.model.rules.daily_norm_minutes)
         floor_txt = ""
         if self.cmb_floor.isVisible():
             floor_txt = f"{self.db.floor_name(self.floor_id)}   •   "

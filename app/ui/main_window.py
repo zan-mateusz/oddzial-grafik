@@ -14,6 +14,7 @@ from app.core.calendar_pl import PL_MONTHS_TITLE, month_days
 from app.io.xlsx_export import export_month
 from app.ui.employees_view import EmployeesView
 from app.ui.rota_view import RotaView
+from app.ui.rules_view import RulesView
 from app.ui.settings_dialog import SettingsDialog
 from app.ui.shift_types_view import ShiftTypesView
 
@@ -53,6 +54,11 @@ i <b>Bilans</b> — całego miesiąca, bo wymiar czasu pracy jest jeden.</p>
 Soboty i niedziele mają niebieskie nagłówki, święta ustawowe — różowe.
 Dyżury w te dni planuje się normalnie.</p>
 
+<p><b>Zasady liczenia</b><br>
+Zakładka <b>Zasady</b> pokazuje, według jakich reguł liczone są godziny —
+norma dobowa, pora nocna, sposób liczenia urlopu — wraz z podstawą prawną.
+Wszystko można tam zmienić, jeśli na oddziale obowiązują inne ustalenia.</p>
+
 <p>Wpis, którego program nie rozpoznał, jest <b>czerwony</b> — te godziny nie są
 liczone, więc sprawdź pisownię. Dane zapisują się automatycznie.</p>
 """
@@ -68,10 +74,12 @@ class MainWindow(QMainWindow):
         self.rota_view = RotaView(db)
         self.employees_view = EmployeesView(db, on_change=self._on_structure_changed)
         self.shift_types_view = ShiftTypesView(db, on_change=self._on_structure_changed)
+        self.rules_view = RulesView(db, on_change=self._on_structure_changed)
 
         self.tabs.addTab(self.rota_view, "Grafik")
         self.tabs.addTab(self.employees_view, "Pracownicy")
         self.tabs.addTab(self.shift_types_view, "Zmiany")
+        self.tabs.addTab(self.rules_view, "Zasady")
         self.setCentralWidget(self.tabs)
 
         self._build_menu()
@@ -117,6 +125,7 @@ class MainWindow(QMainWindow):
 
     def _on_structure_changed(self) -> None:
         self.rota_view.refresh()
+        self.rules_view.reload()
         self._update_status()
 
     def _update_status(self) -> None:

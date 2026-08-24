@@ -13,6 +13,7 @@ from app.core.calendar_pl import (
     DayKind, PL_MONTHS_TITLE, PL_WEEKDAYS_SHORT, day_kind, holiday_name,
     month_days, month_norm,
 )
+from app.core.rules import load_rules
 from app.core.shifts import Category, Entry, ShiftType, fmt_minutes, resolve
 from app.core.stats import summarize_month
 
@@ -44,8 +45,8 @@ CENTER_WRAP = Alignment(horizontal="center", vertical="center", wrap_text=True)
 LEFT = Alignment(horizontal="left", vertical="center")
 
 SUMMARY_HEADERS = [
-    ("Godziny", 9), ("Wymiar", 9), ("Bilans", 9),
-    ("Dyżury", 8), ("Noc", 8), ("Urlop", 7), ("L4", 6),
+    ("Godziny", 9), ("Wymiar", 9), ("Bilans", 9), ("Dyżury", 8),
+    ("Noc", 8), ("Święta", 8), ("Urlop", 7), ("L4", 6),
 ]
 # Kolumny dotyczące wyłącznie tego piętra — dopisywane, gdy pięter jest więcej.
 FLOOR_HEADERS = [("Godz. tu", 9), ("Dyż. tu", 8)]
@@ -70,8 +71,8 @@ def export_month(
     path = Path(path)
     days = month_days(year, month)
     types = db.shift_types_by_code()
-    daily_norm = int(db.get_setting("daily_norm_minutes", "455"))
-    norm = month_norm(year, month, daily_norm)
+    rules = load_rules(db)
+    norm = month_norm(year, month, rules.daily_norm_minutes)
 
     # Sumy miesięczne liczymy ze wszystkich pięter — pracownik ma jeden wymiar
     # czasu pracy niezależnie od tego, gdzie odbył dyżur.
@@ -87,10 +88,10 @@ def export_month(
         employees = db.employees_for_month(year, month, floor_id)
         floor_entries = _resolved(db.month_entries(year, month, floor_id), types)
         month_summaries = summarize_month(
-            year, month, employees, all_entries, daily_norm
+            year, month, employees, all_entries, rules
         )
         floor_summaries = summarize_month(
-            year, month, employees, floor_entries, daily_norm
+            year, month, employees, floor_entries, rules
         )
 
         ws = wb.create_sheet(_sheet_title(floor_label, year, month))
@@ -225,7 +226,9 @@ def _write_body(ws, first_row, days, employees, entries, summaries,
         s = summaries.get(emp["id"])
         month_values = (
             [s.worked_hhmm, s.norm_hhmm, s.balance_hhmm, s.shift_days,
-             fmt_minutes(s.night_minutes), s.leave_days or None, s.sick_days or None]
+             fmt_minutes(s.night_minutes),
+             fmt_minutes(s.holiday_minutes) if s.holiday_minutes else None,
+             s.leave_days or None, s.sick_days or None]
             if s else [None] * len(SUMMARY_HEADERS)
         )
         values = list(month_values)

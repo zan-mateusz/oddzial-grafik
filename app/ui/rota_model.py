@@ -7,9 +7,9 @@ from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont
 
 from app.core.calendar_pl import (
-    DayKind, NORM_MEDICAL_MINUTES, PL_WEEKDAYS_SHORT, day_kind, holiday_name,
-    month_days,
+    DayKind, PL_WEEKDAYS_SHORT, day_kind, holiday_name, month_days,
 )
+from app.core.rules import load_rules
 from app.core.shifts import Category, fmt_minutes, resolve
 from app.core.stats import summarize_month
 
@@ -45,8 +45,10 @@ MONTH_COLUMNS = [
     ("Wymiar", "Obowiązujący wymiar czasu pracy (etat, urlopy, święta)"),
     ("Bilans", "Nadgodziny (+) lub niedogodziny (−) w skali miesiąca"),
     ("Dyż.", "Liczba dyżurów w całym miesiącu"),
-    ("Noc", "Godziny w porze nocnej (21:00–7:00)"),
-    ("Urlop", "Dni urlopu"),
+    ("Noc", "Godziny przypadające na porę nocną — zakres ustawiasz na "
+            "zakładce Zasady"),
+    ("Święta", "Godziny przepracowane w święta ustawowo wolne od pracy"),
+    ("Urlop", "Dni urlopu zużyte w tym miesiącu"),
     ("L4", "Dni zwolnienia lekarskiego"),
 ]
 # Kolumny liczone tylko dla oglądanego piętra (gdy pięter jest więcej niż jedno).
@@ -67,7 +69,7 @@ class RotaModel(QAbstractTableModel):
         self.year = year
         self.month = month
         self.floor_id = floor_id
-        self.daily_norm = NORM_MEDICAL_MINUTES
+        self.rules = load_rules(db)
         self.days: list[dt.date] = []
         self.employees: list = []
         self.summary_columns: list[tuple[str, str]] = list(MONTH_COLUMNS)
@@ -109,9 +111,7 @@ class RotaModel(QAbstractTableModel):
         self.reload()
 
     def _load(self) -> None:
-        self.daily_norm = int(
-            self.db.get_setting("daily_norm_minutes", str(NORM_MEDICAL_MINUTES))
-        )
+        self.rules = load_rules(self.db)
         self.days = month_days(self.year, self.month)
         self._types = self.db.shift_types_by_code()
 
@@ -153,10 +153,10 @@ class RotaModel(QAbstractTableModel):
                 self._elsewhere[key] = (entry, entry_floors.get(key))
 
         self._summaries = summarize_month(
-            self.year, self.month, self.employees, all_entries, self.daily_norm
+            self.year, self.month, self.employees, all_entries, self.rules
         )
         self._floor_summaries = summarize_month(
-            self.year, self.month, self.employees, self._entries, self.daily_norm
+            self.year, self.month, self.employees, self._entries, self.rules
         )
 
     # --- wymiary ------------------------------------------------------------
@@ -289,6 +289,7 @@ class RotaModel(QAbstractTableModel):
             return [
                 month.worked_hhmm, month.norm_hhmm, month.balance_hhmm,
                 str(month.shift_days), fmt_minutes(month.night_minutes),
+                fmt_minutes(month.holiday_minutes) if month.holiday_minutes else "",
                 str(month.leave_days) if month.leave_days else "",
                 str(month.sick_days) if month.sick_days else "",
             ][idx - offset]
@@ -315,16 +316,42 @@ class RotaModel(QAbstractTableModel):
             return None
 
         if role == Qt.ItemDataRole.ToolTipRole:
-            if is_floor_column or floor is None:
-                return self.summary_columns[idx][1]
+            return self._summary_tooltip(idx, offset, is_floor_column, month, floor)
+        return None
+
+    def _summary_tooltip(self, idx, offset, is_floor_column, month, floor) -> str:
+        base = self.summary_columns[idx][1]
+        if is_floor_column or floor is None:
+            return base
+        j = idx - offset
+        extra: list[str] = []
+
+        if j == 4:      # pora nocna
+            window = (f"{self.rules.night_start.strftime('%H:%M')}"
+                      f"–{self.rules.night_end.strftime('%H:%M')}")
+            extra.append(f"Przyjęta pora nocna: {window}")
+        elif j == 5:    # święta
+            extra.append(f"Dyżurów w święta: {month.holidays_worked}")
+            if month.sunday_minutes:
+                extra.append(
+                    f"W niedziele: {fmt_minutes(month.sunday_minutes)} "
+                    f"({month.sundays_worked} dyż.)"
+                )
+        elif j == 6:    # urlop
+            extra.append(f"Zużyty urlop: {month.leave_hhmm}")
+            if month.leave_ignored:
+                extra.append(
+                    f"Pominięto wpisów w dni wolne: {month.leave_ignored} "
+                    "(urlopu udziela się tylko w dni pracy)"
+                )
+        elif j in (0, 1, 2, 3):
             elsewhere = month.shift_days - floor.shift_days
-            base = self.summary_columns[idx][1]
             if elsewhere > 0 and self.floor_id is not None:
                 here = self.db.floor_name(self.floor_id)
-                return (f"{base}\n\nNa tym piętrze ({here}): {floor.shift_days} dyż."
-                        f"\nNa innych piętrach: {elsewhere} dyż.")
-            return base
-        return None
+                extra.append(f"Na tym piętrze ({here}): {floor.shift_days} dyż.")
+                extra.append(f"Na innych piętrach: {elsewhere} dyż.")
+
+        return base + ("\n\n" + "\n".join(extra) if extra else "")
 
     def setData(self, index: QModelIndex, value, role=Qt.ItemDataRole.EditRole) -> bool:
         if role != Qt.ItemDataRole.EditRole or not index.isValid():
