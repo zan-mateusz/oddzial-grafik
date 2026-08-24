@@ -55,7 +55,10 @@ calculated automatically.
   anything is written.
 - **Photo import (optional)** — OCR of a photographed rota via Tesseract.
   Best-effort; always reviewed in the import preview before saving.
-- **Backups** — one-click snapshot and restore.
+- **Backups** — automatic rotating snapshots plus one-click backup/restore.
+- **Built-in manual** — a 17-chapter user guide in the app (Pomoc → Instrukcja
+  obsługi, or F1) with a chapter list, full-text search, and a save-to-HTML
+  button so it can be printed. Written for the end user, not a developer.
 
 ## Layout
 
@@ -74,6 +77,20 @@ app/
 ```
 
 `core/` is pure Python and fully unit-tested; the UI is a thin layer over it.
+
+The manual lives in `app/ui/manual_content.py` — in code rather than a data
+file, so it is always present in the single-file build. `INSTRUKCJA.md` and
+`INSTRUKCJA.html` are **generated** from it:
+
+```bash
+python tools/export_manual.py
+```
+
+Edit the manual in `manual_content.py` and re-run that; never edit the
+generated files. `tests/test_manual.py` checks tag balance, table column
+consistency, that every chapter heading matches its table-of-contents entry,
+that documented keyboard shortcuts are actually wired up, and that the export
+round-trips.
 
 ## Running from source
 

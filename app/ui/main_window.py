@@ -61,6 +61,9 @@ Wszystko można tam zmienić, jeśli na oddziale obowiązują inne ustalenia.</p
 
 <p>Wpis, którego program nie rozpoznał, jest <b>czerwony</b> — te godziny nie są
 liczone, więc sprawdź pisownię. Dane zapisują się automatycznie.</p>
+
+<p><i>Pełna instrukcja obsługi: menu <b>Pomoc → Instrukcja obsługi</b>
+albo klawisz <b>F1</b>.</i></p>
 """
 
 class MainWindow(QMainWindow):
@@ -111,7 +114,9 @@ class MainWindow(QMainWindow):
         self._add(menu_tools, "Ustawienia…", self.open_settings)
 
         menu_help = self.menuBar().addMenu("Pomo&c")
-        self._add(menu_help, "Jak używać programu", self.show_about)
+        self._add(menu_help, "Instrukcja obsługi", self.show_manual, "F1")
+        menu_help.addSeparator()
+        self._add(menu_help, "Krótka ściągawka", self.show_about)
 
     def _add(self, menu, text: str, slot, shortcut: str | None = None) -> QAction:
         action = QAction(text, self)
@@ -308,8 +313,21 @@ class MainWindow(QMainWindow):
             self.rota_view.refresh()
             self._update_status()
 
+    def show_manual(self, section: str | None = None) -> None:
+        """Otwiera pełną instrukcję. Okno jest jedno — kolejne wywołania
+        przenoszą je na wierzch zamiast otwierać duplikat."""
+        from app.ui.manual import ManualWindow
+
+        if getattr(self, "_manual", None) is None:
+            self._manual = ManualWindow(self)
+        if section:
+            self._manual.show_section(section)
+        self._manual.show()
+        self._manual.raise_()
+        self._manual.activateWindow()
+
     def show_about(self) -> None:
-        QMessageBox.about(self, "Jak używać programu", ABOUT)
+        QMessageBox.about(self, "Krótka ściągawka", ABOUT)
 
     def closeEvent(self, event) -> None:
         self.db.conn.commit()

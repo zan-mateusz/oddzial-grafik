@@ -101,3 +101,42 @@ def test_settings_and_import_dialogs_build(qapp, db):
     ImportDialog._pick_file = lambda self: None
     dialog = ImportDialog(db, 2026, 6, floor_id=db.floors()[0]["id"])
     assert dialog.cmb_floor.count() == len(db.floors())
+
+
+def test_manual_window_builds_and_navigates(qapp):
+    from PySide6.QtCore import Qt
+
+    from app.ui.manual import ManualWindow
+    from app.ui.manual_content import SECTIONS
+
+    window = ManualWindow()
+    assert window.contents.count() == len(SECTIONS)
+    window.show_section("zasady")
+    chosen = window.contents.currentItem().data(Qt.ItemDataRole.UserRole)
+    assert chosen == "zasady"
+    window.close()
+
+
+def test_manual_search_reports_missing_text(qapp):
+    from app.ui.manual import ManualWindow
+
+    window = ManualWindow()
+    window.ed_search.setText("pora nocna")
+    window._find_next()
+    assert window.lbl_found.text() == ""
+
+    window.ed_search.setText("zzzznieistniejące")
+    window._find_next()
+    assert "Nie znaleziono" in window.lbl_found.text()
+    window.close()
+
+
+def test_help_menu_opens_the_manual_once(qapp, db):
+    from app.ui.main_window import MainWindow
+
+    window = MainWindow(db)
+    window.show_manual()
+    first = window._manual
+    window.show_manual("kopie")
+    assert window._manual is first        # jedno okno, nie kolejne kopie
+    window.close()
