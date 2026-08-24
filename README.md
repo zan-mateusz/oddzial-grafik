@@ -89,25 +89,53 @@ the data directory to get the clean-install experience back.
 
 ## Building the Windows executable
 
-PyInstaller cannot cross-compile, so the Windows build runs on a Windows
-machine or on CI. The included GitHub Actions workflow does it for you:
+PyInstaller cannot cross-compile, so **the Windows build must run on Windows** —
+either a Windows machine or the included GitHub Actions workflow. Nothing about
+the resulting program needs Python on the target machine; the interpreter and Qt
+are bundled.
+
+Two artifacts are produced:
+
+| File | What it is |
+|---|---|
+| `Grafik-Instalator-<ver>.exe` | Installer. Creates a desktop shortcut, installs per-user (no admin rights). Fast startup. **Recommended.** |
+| `Grafik-<ver>-przenosny.exe` | Single self-contained file. Copy anywhere and double-click, no installation. Starts a few seconds slower — it unpacks itself each run. |
+
+### Via GitHub Actions (no Windows machine needed)
+
+Push the repo to GitHub, then either tag a release:
 
 ```bash
 git tag v1.0.0 && git push --tags
 ```
 
-This runs the tests, builds with PyInstaller, wraps the result in an Inno Setup
-installer, and attaches `Grafik-Instalator-1.0.0.exe` plus a portable zip to the
-release. `workflow_dispatch` builds without tagging.
+or trigger **Actions → Build Windows → Run workflow** for an untagged build.
+The workflow runs the tests, stamps the version into the executable metadata,
+builds both artifacts, verifies both exist, and — for a tag — attaches them to
+the GitHub release. Untagged runs leave them as a downloadable artifact.
 
-To build on a Windows machine directly:
+### On a Windows machine
 
 ```powershell
 pip install -r requirements-dev.txt
 pyinstaller grafik.spec --noconfirm --clean
 ```
 
-The installer requires no administrator rights (`PrivilegesRequired=lowest`).
+That yields `dist\Grafik\Grafik.exe` (directory build) and
+`dist\Grafik-przenosny.exe`. For the installer, install
+[Inno Setup 6](https://jrsoftware.org/isdl.php) and run:
+
+```powershell
+& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=1.0.0 packaging\grafik.iss
+```
+
+### SmartScreen
+
+The executables are unsigned, so Windows shows *"Windows protected your PC"* on
+first run. The user clicks **More info → Run anyway**, once. Removing that
+prompt requires a code-signing certificate (a paid, identity-verified purchase);
+nothing in the build can suppress it. `packaging/INSTALACJA.md` is a plain-Polish
+install guide covering this, written for the end user rather than a developer.
 
 ## Photo import
 

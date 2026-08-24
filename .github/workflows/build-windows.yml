@@ -22,49 +22,91 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Run tests
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: python -m pytest tests -q
-
-      - name: Build with PyInstaller
-        run: pyinstaller grafik.spec --noconfirm --clean
 
       - name: Determine version
         id: version
         shell: bash
         run: |
           ref="${GITHUB_REF#refs/tags/v}"
-          if [ "$ref" = "$GITHUB_REF" ]; then ref="0.0.0-dev"; fi
+          if [ "$ref" = "$GITHUB_REF" ]; then ref="0.0.0"; fi
           echo "value=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Stamp version into the executable
+        shell: pwsh
+        run: |
+          $v = "${{ steps.version.outputs.value }}"
+          $parts = $v.Split('.')
+          while ($parts.Count -lt 4) { $parts += '0' }
+          $tuple = ($parts[0..3]) -join ', '
+          $dotted = ($parts[0..3]) -join '.'
+          $file = 'packaging/version_info.txt'
+          (Get-Content $file) `
+            -replace '\(1, 0, 0, 0\)', "($tuple)" `
+            -replace "'1\.0\.0\.0'", "'$dotted'" |
+            Set-Content $file
+
+      - name: Build with PyInstaller
+        run: pyinstaller grafik.spec --noconfirm --clean
 
       - name: Ensure Inno Setup is available
         shell: pwsh
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) {
-            Write-Host "Inno Setup nie jest zainstalowany na obrazie — instaluję."
+            Write-Host "Inno Setup nie jest zainstalowany na obrazie - instaluje."
             choco install innosetup --no-progress -y
           }
 
       - name: Build installer
-        run: >
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          /DAppVersion=${{ steps.version.outputs.value }}
-          packaging\grafik.iss
-
-      - name: Package portable version
         shell: pwsh
-        run: Compress-Archive -Path dist\Grafik\* -DestinationPath dist\Grafik-portable.zip
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          & $iscc "/DAppVersion=${{ steps.version.outputs.value }}" packaging\grafik.iss
+
+      - name: Name the portable build
+        shell: pwsh
+        run: |
+          $v = "${{ steps.version.outputs.value }}"
+          Move-Item dist\Grafik-przenosny.exe "dist\Grafik-$v-przenosny.exe" -Force
+
+      - name: Verify both artifacts exist
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem dist\*.exe
+          if ($files.Count -lt 2) {
+            throw "Oczekiwano instalatora i wersji przenosnej, znaleziono: $($files.Count)"
+          }
+          $files | ForEach-Object {
+            "{0}  —  {1:N1} MB" -f $_.Name, ($_.Length / 1MB)
+          }
 
       - uses: actions/upload-artifact@v4
         with:
           name: Grafik-Windows
-          path: |
-            dist/Grafik-Instalator-*.exe
-            dist/Grafik-portable.zip
+          path: dist/*.exe
 
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/Grafik-Instalator-*.exe
-            dist/Grafik-portable.zip
+          files: dist/*.exe
+          body: |
+            ## Instalacja
+
+            **Zalecane:** pobierz `Grafik-Instalator-*.exe` i uruchom.
+            Program zainstaluje sie dla biezacego uzytkownika i utworzy skrot
+            na pulpicie. Nie sa potrzebne uprawnienia administratora ani Python.
+
+            **Bez instalacji:** `Grafik-*-przenosny.exe` to pojedynczy plik —
+            wystarczy skopiowac go na pulpit i kliknac dwukrotnie.
+            Uruchamia sie kilka sekund dluzej.
+
+            ### Ostrzezenie Windows
+
+            Pliki nie sa podpisane cyfrowo, wiec przy pierwszym uruchomieniu
+            Windows pokaze komunikat "System Windows ochronil Twoj komputer".
+            Nalezy kliknac **Wiecej informacji**, a nastepnie
+            **Uruchom mimo to**. Komunikat pojawia sie tylko raz.
