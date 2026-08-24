@@ -1,7 +1,6 @@
 """Testy aktualizacji programu. Serwis jest podstawiany — bez sieci."""
 import hashlib
 import json
-from pathlib import Path
 
 import pytest
 
