@@ -14,7 +14,9 @@ from app import config
 from app.core import updates
 from app.version import __version__
 
-CHECK_INTERVAL_DAYS = 1
+# Jedno zapytanie na godzinę jest dla serwisu niezauważalne, a poprawka trafia
+# do użytkownika przy najbliższym uruchomieniu, nie dopiero nazajutrz.
+CHECK_INTERVAL_HOURS = 1
 
 
 # --- sprawdzanie w tle ------------------------------------------------------
@@ -60,24 +62,28 @@ def start_check(parent, repo: str):
     return thread, checker
 
 
-def should_check_today(db) -> bool:
-    """Ogranicza odpytywanie serwisu do raz na dobę."""
+def should_check_now(db) -> bool:
+    """Czy wypada odpytać serwis przy tym uruchomieniu."""
     if db.get_setting("update_check_enabled", "1") == "0":
         return False
     last = db.get_setting("update_last_check", "")
     if not last:
         return True
     try:
-        when = dt.date.fromisoformat(last)
+        # Starsze wersje zapisywały samą datę — wtedy wychodzi północ,
+        # czyli i tak dawno temu.
+        when = dt.datetime.fromisoformat(last)
     except ValueError:
         return True
-    return (dt.date.today() - when).days >= CHECK_INTERVAL_DAYS
+    return dt.datetime.now() - when >= dt.timedelta(hours=CHECK_INTERVAL_HOURS)
 
 
 def mark_checked(db, outcome: str = "") -> None:
     """Zapisuje datę sprawdzenia. Wywoływane dopiero po jego zakończeniu —
     inaczej nieudana próba blokowałaby kolejne na całą dobę."""
-    db.set_setting("update_last_check", dt.date.today().isoformat())
+    db.set_setting(
+        "update_last_check", dt.datetime.now().isoformat(timespec="minutes")
+    )
     db.set_setting(
         "update_last_result",
         f"{dt.datetime.now().strftime('%Y-%m-%d %H:%M')} — {outcome}" if outcome else "",

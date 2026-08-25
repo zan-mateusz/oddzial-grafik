@@ -253,16 +253,16 @@ def test_check_frequency_and_dismissal(tmp_path):
     from app.ui import update_dialog as ud
 
     db = Database(tmp_path / "t.db")
-    assert ud.should_check_today(db)          # nigdy nie sprawdzano
+    assert ud.should_check_now(db)          # nigdy nie sprawdzano
     ud.mark_checked(db)
-    assert not ud.should_check_today(db)      # dziś już sprawdzono
+    assert not ud.should_check_now(db)      # przed chwilą sprawdzono
 
-    yesterday = (dt.date.today() - dt.timedelta(days=2)).isoformat()
-    db.set_setting("update_last_check", yesterday)
-    assert ud.should_check_today(db)
+    earlier = (dt.datetime.now() - dt.timedelta(hours=3)).isoformat(timespec="minutes")
+    db.set_setting("update_last_check", earlier)
+    assert ud.should_check_now(db)
 
     db.set_setting("update_check_enabled", "0")
-    assert not ud.should_check_today(db)      # wyłączone w ustawieniach
+    assert not ud.should_check_now(db)      # wyłączone w ustawieniach
 
     assert not ud.was_dismissed(db, "1.1.0")
     ud.dismiss(db, "1.1.0")
@@ -278,7 +278,7 @@ def test_corrupted_last_check_date_forces_a_check(tmp_path):
 
     db = Database(tmp_path / "t.db")
     db.set_setting("update_last_check", "nonsens")
-    assert ud.should_check_today(db)
+    assert ud.should_check_now(db)
     db.close()
 
 
@@ -352,12 +352,12 @@ def test_a_failed_check_does_not_use_up_the_daily_attempt(tmp_path):
     from app.ui import update_dialog as ud
 
     db = Database(tmp_path / "t.db")
-    assert ud.should_check_today(db)
+    assert ud.should_check_now(db)
 
     # Nieudane sprawdzenie zapisuje powód, ale zostawia datę pustą.
     ud.mark_checked(db, "nie udało się sprawdzić — brak sieci")
     db.set_setting("update_last_check", "")
-    assert ud.should_check_today(db)
+    assert ud.should_check_now(db)
     assert "nie udało się" in ud.last_check_description(db)
     db.close()
 
@@ -368,7 +368,7 @@ def test_a_successful_check_records_its_outcome(tmp_path):
 
     db = Database(tmp_path / "t.db")
     ud.mark_checked(db, "znaleziono wersję 0.1.1")
-    assert not ud.should_check_today(db)
+    assert not ud.should_check_now(db)
     assert "0.1.1" in ud.last_check_description(db)
     db.close()
 
@@ -381,10 +381,43 @@ def test_changing_the_source_starts_checking_afresh(tmp_path):
     db = Database(tmp_path / "t.db")
     ud.mark_checked(db, "brak nowszej wersji")
     ud.dismiss(db, "0.1.1")
-    assert not ud.should_check_today(db)
+    assert not ud.should_check_now(db)
 
     ud.forget_checks(db)
-    assert ud.should_check_today(db)
+    assert ud.should_check_now(db)
     assert not ud.was_dismissed(db, "0.1.1")
     assert ud.last_check_description(db) == ""
+    db.close()
+
+
+def test_check_happens_again_within_the_same_day(tmp_path):
+    """Sprawdzanie raz na dobę oznaczało, że poprawka czekała do jutra."""
+    import datetime as dt2
+
+    from app.db import Database
+    from app.ui import update_dialog as ud
+
+    db = Database(tmp_path / "t.db")
+    ud.mark_checked(db, "brak nowszej wersji")
+    assert not ud.should_check_now(db)
+
+    two_hours_ago = (dt2.datetime.now() - dt2.timedelta(hours=2)).isoformat(
+        timespec="minutes"
+    )
+    db.set_setting("update_last_check", two_hours_ago)
+    assert ud.should_check_now(db), "po godzinie program powinien sprawdzić ponownie"
+    db.close()
+
+
+def test_a_date_saved_by_an_older_version_is_still_understood(tmp_path):
+    """Wcześniejsze wydania zapisywały samą datę, bez godziny."""
+    import datetime as dt2
+
+    from app.db import Database
+    from app.ui import update_dialog as ud
+
+    db = Database(tmp_path / "t.db")
+    db.set_setting("update_last_check", dt2.date.today().isoformat())
+    # Sama data to północ, więc od tamtej pory minęła już godzina.
+    assert ud.should_check_now(db)
     db.close()

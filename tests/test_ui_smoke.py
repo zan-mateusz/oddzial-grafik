@@ -183,8 +183,10 @@ def test_update_menu_without_a_configured_source_explains_itself(qapp, db, monke
     """Bez ustawionego adresu program tłumaczy, co zrobić — nie sięga do sieci."""
     from PySide6.QtWidgets import QMessageBox
 
+    from app.core import updates
     from app.ui.main_window import MainWindow
 
+    monkeypatch.setattr(updates, "can_self_update", lambda: True)
     shown = []
     monkeypatch.setattr(QMessageBox, "information",
                         lambda *a, **k: shown.append(a[-1]))
@@ -192,6 +194,56 @@ def test_update_menu_without_a_configured_source_explains_itself(qapp, db, monke
     window.check_updates()
     assert shown and "Ustawienia" in shown[0]
     assert window._update_thread is None     # nie odpytano serwisu
+    window.close()
+
+
+def test_running_from_source_says_so_instead_of_checking(qapp, db, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    from app.ui.main_window import MainWindow
+
+    shown = []
+    monkeypatch.setattr(QMessageBox, "information",
+                        lambda *a, **k: shown.append(a[-1]))
+    db.set_setting("update_repo", "ktos/grafik")
+    window = MainWindow(db)
+    window.check_updates()          # testy działają z plików źródłowych
+    assert shown and "źródłowych" in shown[0]
+    assert window._update_thread is None
+    window.close()
+
+
+def test_startup_check_runs_when_conditions_allow(qapp, db, monkeypatch):
+    """Ciche sprawdzenie przy uruchomieniu ma naprawdę wystartować."""
+    from app.core import updates
+    from app.ui.main_window import MainWindow
+
+    monkeypatch.setattr(updates, "can_self_update", lambda: True)
+    monkeypatch.setattr(updates, "check_for_update", lambda repo: None)
+    db.set_setting("update_repo", "ktos/grafik")
+
+    window = MainWindow(db)
+    window.maybe_check_updates()
+    assert window._update_thread is not None, "sprawdzanie przy starcie nie ruszyło"
+
+    assert _pump(qapp, lambda: not window._update_thread.isRunning())
+    from app.ui.update_dialog import last_check_description
+    assert "brak nowszej wersji" in last_check_description(db)
+    window.close()
+
+
+def test_startup_check_is_skipped_right_after_a_previous_one(qapp, db, monkeypatch):
+    from app.core import updates
+    from app.ui import update_dialog as ud
+    from app.ui.main_window import MainWindow
+
+    monkeypatch.setattr(updates, "can_self_update", lambda: True)
+    db.set_setting("update_repo", "ktos/grafik")
+    ud.mark_checked(db, "brak nowszej wersji")
+
+    window = MainWindow(db)
+    window.maybe_check_updates()
+    assert window._update_thread is None
     window.close()
 
 
@@ -264,7 +316,7 @@ def test_saving_a_new_update_address_clears_previous_checks(qapp, db):
     dialog.ed_repo.setText("zan-mateusz/oddzial-grafik")
     dialog._save()
 
-    assert ud.should_check_today(db)
+    assert ud.should_check_now(db)
     assert not ud.was_dismissed(db, "0.1.1")
 
 

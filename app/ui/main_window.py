@@ -379,17 +379,27 @@ class MainWindow(QMainWindow):
         self._run_update_check(quiet=False)
 
     def maybe_check_updates(self) -> None:
-        """Ciche sprawdzenie przy starcie, najwyżej raz na dobę."""
+        """Ciche sprawdzenie przy uruchomieniu programu."""
         from app.core.updates import can_self_update
-        from app.ui.update_dialog import should_check_today
+        from app.ui.update_dialog import should_check_now
 
-        if not can_self_update() or not should_check_today(self.db):
+        if not can_self_update() or not should_check_now(self.db):
             return
         self._run_update_check(quiet=True)
 
     def _run_update_check(self, quiet: bool) -> None:
         from app.core.updates import can_self_update
         from app.ui.update_dialog import start_check
+
+        if not can_self_update():
+            # Uruchomienie z plików źródłowych nie da się zaktualizować samo.
+            if not quiet:
+                QMessageBox.information(
+                    self, "Aktualizacje",
+                    "Program działa z plików źródłowych, więc nie może "
+                    "zaktualizować się sam.",
+                )
+            return
 
         repo = self.db.get_setting("update_repo", "")
         if not repo:
@@ -401,14 +411,6 @@ class MainWindow(QMainWindow):
                     "(np. nazwa-uzytkownika/grafik).",
                 )
             return
-        if not can_self_update() and not quiet:
-            QMessageBox.information(
-                self, "Aktualizacje",
-                "Program działa z plików źródłowych, więc nie może zaktualizować "
-                "się sam.",
-            )
-            return
-
         if not quiet:
             self.statusBar().showMessage("Sprawdzanie aktualizacji…", 4000)
 
@@ -438,11 +440,11 @@ class MainWindow(QMainWindow):
             else f"znaleziono wersję {release.version}",
         )
         if release is None:
-            if not quiet:
-                QMessageBox.information(
-                    self, "Aktualizacje",
-                    f"Masz najnowszą wersję programu ({__version__}).",
-                )
+            message = f"Masz najnowszą wersję programu ({__version__})."
+            if quiet:
+                self.statusBar().showMessage(f"Sprawdzono aktualizacje — {message}", 6000)
+            else:
+                QMessageBox.information(self, "Aktualizacje", message)
             return
         if quiet and was_dismissed(self.db, release.version):
             return

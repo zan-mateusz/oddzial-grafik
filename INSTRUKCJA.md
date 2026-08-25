@@ -532,12 +532,15 @@ próbę.
 
 ### Kiedy program sprawdza
 
-Najwyżej raz na dobę, w tle, chwilę po uruchomieniu. Jeśli chcesz sprawdzić
-od razu — **Pomoc → Sprawdź aktualizacje**. To polecenie działa zawsze,
-niezależnie od tego, czy program sprawdzał już dzisiaj, i mówi wprost, gdy
-czegoś nie da się pobrać.
+Przy każdym uruchomieniu, w tle, chwilę po otwarciu okna — ale nie częściej
+niż raz na godzinę. Gdy nowszej wersji nie ma, na pasku na dole pojawia się
+na moment potwierdzenie, że sprawdzenie się odbyło.
 
-Wynik ostatniego sprawdzenia widać w **Pomoc → O programie**.
+Jeśli chcesz sprawdzić natychmiast — **Pomoc → Sprawdź aktualizacje**.
+To polecenie działa zawsze, niezależnie od tego, kiedy program sprawdzał
+ostatnio, i mówi wprost, gdy czegoś nie da się pobrać.
+
+Datę i wynik ostatniego sprawdzenia widać w **Pomoc → O programie**.
 
 ### Wyłączenie sprawdzania
 
