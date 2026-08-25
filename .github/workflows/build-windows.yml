@@ -127,13 +127,29 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         run: |
-          # Opis wydania widzi uzytkownik w oknie aktualizacji, wiec pierwsze
-          # miejsce zajmuje tresc znacznika, a instrukcja instalacji idzie nizej.
+          # Opis wydania widzi uzytkownik w oknie aktualizacji jako "co sie
+          # zmienilo", wiec pierwsze miejsce zajmuje tresc znacznika.
           tag="${GITHUB_REF#refs/tags/}"
-          notes="$(git tag -l --format='%(contents:body)' "$tag")"
-          if [ -z "$(echo "$notes" | tr -d '[:space:]')" ]; then
-            notes="$(git tag -l --format='%(contents)' "$tag")"
+
+          # Checkout niekoniecznie sciaga sam obiekt znacznika; bez niego
+          # git podstawia opis commita, ktory trafial do uzytkownika.
+          git fetch --force origin "refs/tags/$tag:refs/tags/$tag" || true
+
+          notes=""
+          if [ "$(git cat-file -t "$tag" 2>/dev/null)" = "tag" ]; then
+            notes="$(git tag -l --format='%(contents:body)' "$tag")"
+            if [ -z "$(echo "$notes" | tr -d '[:space:]')" ]; then
+              notes="$(git tag -l --format='%(contents)' "$tag")"
+            fi
+          else
+            echo "::warning::Znacznik $tag nie jest opisany - wydanie bez listy zmian."
           fi
+
+          # Stopki techniczne nie maja czego szukac w opisie dla uzytkownika.
+          notes="$(printf '%s\n' "$notes" \
+            | grep -v -E '^(Co-Authored-By|Claude-Session|Signed-off-by|https://claude):' \
+            | grep -v -E '^https://claude\.ai/' || true)"
+
           {
             if [ -n "$(echo "$notes" | tr -d '[:space:]')" ]; then
               echo "$notes"
@@ -143,7 +159,7 @@ jobs:
             fi
             cat packaging/release-body.md
           } > release-notes.md
-          echo "--- podglad ---"
+          echo "--- podglad opisu wydania ---"
           cat release-notes.md
 
       - name: Attach to release
