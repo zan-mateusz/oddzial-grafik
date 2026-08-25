@@ -7,6 +7,13 @@
 #endif
 
 [Setup]
+; AppId decyduje o tym, czy instalator rozpozna wczesniejsza instalacje
+; i podmieni ja w miejscu, zamiast zakladac druga obok. Bez tej linii Inno
+; przyjmuje wartosc AppName, wiec zmiana nazwy programu po cichu zerwalaby
+; sciezke aktualizacji. Wartosc jest celowo taka sama jak dotychczasowa
+; domyslna - NIE WOLNO jej zmieniac, bo rozjedzie sie z juz zainstalowanymi
+; kopiami.
+AppId=Grafik dyzurow
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher=Grafik
