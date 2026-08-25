@@ -272,6 +272,8 @@ class ImportedRow:
     entries: dict[int, str]           # dzień -> treść komórki
     employee_id: int | None = None    # dopasowany pracownik
     create_new: bool = False
+    match_kind: str = ""              # "pełne", "nazwisko" albo pusto
+    ambiguous: bool = False           # pasuje kilka osób — wybór należy do użytkownika
 
     @property
     def filled(self) -> int:
@@ -331,37 +333,96 @@ def normalize_token(text: str) -> str:
     return re.sub(r"[^a-z]", "", plain)
 
 
-def match_employees(rows: list[ImportedRow], employees: list) -> None:
-    """Dopasowuje wiersze do pracowników po pełnym imieniu i nazwisku.
+def _person_tokens(text: str) -> tuple[set[str], set[str]]:
+    """Rozdziela zapis osoby na pełne wyrazy i same inicjały.
 
-    Gdy pełne dopasowanie zawiedzie (w arkuszu bywa "Kowalska A."), próbujemy
-    po samym nazwisku — ale wyłącznie wtedy, gdy wskazuje ono jednoznacznie na
-    jedną osobę. Dopasowanie po imieniu byłoby niebezpieczne: dwie Ewy na
-    oddziale to norma, a pomyłka przypisałaby dyżury nie tej osobie.
+    W arkuszu spotyka się i "Dejnek Aneta", i "Dejnek A." — inicjał niesie
+    informację, więc nie wolno go po prostu wyrzucić.
     """
-    exact: dict[str, int] = {}
-    by_surname: dict[str, set[int]] = {}
+    plain = unicodedata.normalize("NFKD", strip_ordinal(text).lower().translate(_STROKE_LETTERS))
+    plain = "".join(ch for ch in plain if not unicodedata.combining(ch))
+    words, initials = set(), set()
+    for part in re.split(r"[^a-z]+", plain):
+        if len(part) > 1:
+            words.add(part)
+        elif part:
+            initials.add(part)
+    return words, initials
+
+
+def _given_names_agree(source: set[str], employee: set[str]) -> bool:
+    """Czy imiona z arkusza mogą oznaczać tę samą osobę.
+
+    Dopuszczamy skróty ("Ane" wobec "Aneta") oraz drugie imię, ale nie dwa
+    różne imiona — "Dejnek Aneta" to nie jest "Dejnek Dorota".
+    """
+    if not source or not employee:
+        # Jedna ze stron nie podaje imienia, więc nie ma czemu zaprzeczyć.
+        return True
+    for a in source:
+        for b in employee:
+            if a == b or a.startswith(b) or b.startswith(a):
+                return True
+    return False
+
+
+def _initials_agree(initials: set[str], employee_given: set[str]) -> bool:
+    """Inicjał musi pasować do któregoś imienia pracownika."""
+    if not initials or not employee_given:
+        return True
+    return all(
+        any(name.startswith(letter) for name in employee_given)
+        for letter in initials
+    )
+
+
+def match_employees(rows: list[ImportedRow], employees: list) -> None:
+    """Dopasowuje wiersze arkusza do pracowników.
+
+    Podstawą jest pełne imię i nazwisko. Zapis skrócony ("Kowalska A.") jest
+    dopasowywany po nazwisku, ale tylko wtedy, gdy wskazuje jedną osobę,
+    a imiona i inicjały sobie nie przeczą. Bez tego warunku "Dejnek Aneta"
+    trafiała na wpisaną wcześniej "Dejnek Dorota".
+    """
+    entries = []
     for emp in employees:
-        full = f"{emp['last_name']} {emp['first_name']}".strip()
-        exact.setdefault(normalize_name(full), emp["id"])
         surname = normalize_token(emp["last_name"])
-        if surname:
-            by_surname.setdefault(surname, set()).add(emp["id"])
+        full_words, _ = _person_tokens(f"{emp['last_name']} {emp['first_name']}")
+        given, _ = _person_tokens(emp["first_name"])
+        entries.append({
+            "id": emp["id"],
+            "surname": surname,
+            "full": full_words,
+            "given": given - {surname},
+        })
 
     for row in rows:
-        key = normalize_name(row.source_name)
-        emp_id = exact.get(key)
+        words, initials = _person_tokens(row.source_name)
+        emp_id, kind, ambiguous = None, "", False
+
+        # 1. Pełna zgodność imienia i nazwiska.
+        for entry in entries:
+            if entry["full"] and entry["full"] == words:
+                emp_id, kind = entry["id"], "pełne"
+                break
+
+        # 2. Zapis skrócony — wyłącznie przy braku sprzeczności.
         if emp_id is None:
-            tokens = set(key.split())
-            candidates: set[int] = set()
-            for surname, ids in by_surname.items():
-                if surname in tokens:
-                    candidates |= ids
-            # Przy dwóch osobach o tym samym nazwisku wybór zostawiamy użytkownikowi.
+            candidates = [
+                entry for entry in entries
+                if entry["surname"] and entry["surname"] in words
+                and _given_names_agree(words - {entry["surname"]}, entry["given"])
+                and _initials_agree(initials, entry["given"])
+            ]
             if len(candidates) == 1:
-                emp_id = candidates.pop()
+                emp_id, kind = candidates[0]["id"], "nazwisko"
+            elif len(candidates) > 1:
+                ambiguous = True
+
         row.employee_id = emp_id
-        row.create_new = emp_id is None
+        row.match_kind = kind
+        row.ambiguous = ambiguous
+        row.create_new = emp_id is None and not ambiguous
 
 
 def apply_import(

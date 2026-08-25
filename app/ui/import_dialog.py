@@ -296,10 +296,19 @@ class ImportDialog(QDialog):
 
         found = "automatycznie" if auto else "ręcznie"
         matched = sum(1 for r in self.rows if r.employee_id)
+        fuzzy = sum(1 for r in self.rows if r.match_kind == "nazwisko")
+        unclear = sum(1 for r in self.rows if r.ambiguous)
+        extra = ""
+        if fuzzy:
+            extra += (f" &nbsp;•&nbsp; <span style='color:#B45309'>po samym "
+                      f"nazwisku: <b>{fuzzy}</b></span>")
+        if unclear:
+            extra += (f" &nbsp;•&nbsp; <span style='color:#B00020'>wymaga wyboru: "
+                      f"<b>{unclear}</b></span>")
         self.lbl_status.setText(
             f"Układ rozpoznany {found}: <b>{len(lay.day_cols)}</b> dni, "
             f"<b>{len(self.rows)}</b> wierszy z nazwiskami, "
-            f"dopasowano <b>{matched}</b> do istniejących pracowników."
+            f"dopasowano <b>{matched}</b> do istniejących pracowników.{extra}"
         )
         self._set_enabled(bool(self.rows))
 
@@ -352,14 +361,28 @@ class ImportDialog(QDialog):
                 idx = combo.findData(row.employee_id)
                 if idx >= 0:
                     combo.setCurrentIndex(idx)
+            elif row.ambiguous:
+                # Kilka osób pasuje — nie zgadujemy, wybór należy do użytkownika.
+                combo.setCurrentIndex(1)          # „pomiń ten wiersz"
             self.mapping.setCellWidget(r, 2, combo)
             self._combos.append(combo)
 
-            note = "" if row.employee_id else "nowy pracownik"
+            note, colour = self._match_note(row)
             item = QTableWidgetItem(note)
-            if note:
-                item.setForeground(QBrush(QColor("#B45309")))
+            if colour:
+                item.setForeground(QBrush(QColor(colour)))
             self.mapping.setItem(r, 3, item)
+
+    @staticmethod
+    def _match_note(row) -> tuple[str, str]:
+        """Opis sposobu dopasowania — dopasowania niepewne mają być widoczne."""
+        if row.ambiguous:
+            return "pasuje kilka osób — wybierz", "#B00020"
+        if row.employee_id is None:
+            return "nowy pracownik", "#B45309"
+        if row.match_kind == "nazwisko":
+            return "dopasowano po nazwisku — sprawdź", "#B45309"
+        return "", ""
 
     # --- zapis --------------------------------------------------------------
 
@@ -379,6 +402,24 @@ class ImportDialog(QDialog):
             QMessageBox.information(self, "Nic do zaimportowania",
                                     "Wszystkie wiersze zostały pominięte.")
             return
+
+        skipped_unclear = [
+            row.source_name for row, combo in zip(self.rows, self._combos)
+            if row.ambiguous and combo.currentData() == "skip"
+        ]
+        if skipped_unclear:
+            names = ", ".join(skipped_unclear[:5])
+            more = f" i {len(skipped_unclear) - 5} innych" if len(skipped_unclear) > 5 else ""
+            answer = QMessageBox.warning(
+                self, "Nierozstrzygnięte nazwiska",
+                f"Do tych wierszy pasuje kilka osób i nie wskazano, o którą chodzi:\n"
+                f"{names}{more}.\n\nZostaną pominięte, więc ich dyżury nie trafią "
+                "do grafiku. Kontynuować mimo to?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Cancel,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
 
         floor_id = self.cmb_floor.currentData()
         new_count = sum(1 for r in selected if r.create_new)

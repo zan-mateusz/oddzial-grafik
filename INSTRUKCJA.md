@@ -377,9 +377,24 @@ W oknie importu widać podgląd arkusza z zaznaczonymi na żółto numerami dni
 i na niebiesko kolumną nazwisk. Jeśli program trafił źle, popraw numery
 w polach **Położenie danych** — podgląd od razu się odświeży.
 
-Na dole okna dopasujesz nazwiska z pliku do pracowników w programie.
-Osoby nieznane mają ustawione **Utwórz nowego pracownika** — program założy
-je sam. Możesz też wybrać **pomiń ten wiersz**.
+### Dopasowanie nazwisk
+
+Na dole okna widać, do kogo trafi każdy wiersz. Kolumna **Uwaga** mówi,
+na ile pewne jest dopasowanie:
+
+| Uwaga | Znaczenie |
+|---|---|
+| puste | zgadza się całe imię i nazwisko |
+| dopasowano po nazwisku | w arkuszu był zapis skrócony,
+    np. „Kowalska A." — warto rzucić okiem |
+| nowy pracownik | takiej osoby nie ma jeszcze w programie,
+    zostanie założona |
+| pasuje kilka osób | trzeba wskazać, o którą chodzi |
+
+Program nigdy nie połączy dwóch osób o tym samym nazwisku, ale różnych
+imionach: **Dejnek Aneta** i **Dejnek Dorota** pozostaną osobnymi
+pracownikami. Jeżeli w arkuszu jest samo nazwisko, a na oddziale są dwie takie
+osoby, program o tym powie i poprosi o wybór zamiast zgadywać.
 
 Przy kilku piętrach wskaż jeszcze, **na które piętro** wczytać dane.
 Grafik pozostałych pięter pozostanie nietknięty.

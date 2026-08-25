@@ -144,7 +144,7 @@ def test_name_matching_ignores_ordinal_prefix(tmp_path):
     from app.db import Database
     db = Database(tmp_path / "t.db")
     db.add_employee("Pierwsza", "Agata")
-    rows = [xi.ImportedRow(source_name="1. Pierwsza Anna", entries={1: "D"})]
+    rows = [xi.ImportedRow(source_name="1. Pierwsza Agata", entries={1: "D"})]
     xi.match_employees(rows, db.employees())
     assert rows[0].employee_id is not None
     db.close()

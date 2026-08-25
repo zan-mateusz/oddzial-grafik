@@ -339,9 +339,22 @@ Obsługiwane są pliki <code>.xlsx</code> (Excel) oraz <code>.ods</code>
 <p>W oknie importu widać podgląd arkusza z zaznaczonymi na żółto numerami dni
 i na niebiesko kolumną nazwisk. Jeśli program trafił źle, popraw numery
 w polach <b>Położenie danych</b> — podgląd od razu się odświeży.</p>
-<p>Na dole okna dopasujesz nazwiska z pliku do pracowników w programie.
-Osoby nieznane mają ustawione <b>Utwórz nowego pracownika</b> — program założy
-je sam. Możesz też wybrać <b>pomiń ten wiersz</b>.</p>
+<h3>Dopasowanie nazwisk</h3>
+<p>Na dole okna widać, do kogo trafi każdy wiersz. Kolumna <b>Uwaga</b> mówi,
+na ile pewne jest dopasowanie:</p>
+<table>
+<tr><th>Uwaga</th><th>Znaczenie</th></tr>
+<tr><td>puste</td><td>zgadza się całe imię i nazwisko</td></tr>
+<tr><td>dopasowano po nazwisku</td><td>w arkuszu był zapis skrócony,
+    np. „Kowalska A." — warto rzucić okiem</td></tr>
+<tr><td>nowy pracownik</td><td>takiej osoby nie ma jeszcze w programie,
+    zostanie założona</td></tr>
+<tr><td>pasuje kilka osób</td><td>trzeba wskazać, o którą chodzi</td></tr>
+</table>
+<p>Program nigdy nie połączy dwóch osób o tym samym nazwisku, ale różnych
+imionach: <b>Dejnek Aneta</b> i <b>Dejnek Dorota</b> pozostaną osobnymi
+pracownikami. Jeżeli w arkuszu jest samo nazwisko, a na oddziale są dwie takie
+osoby, program o tym powie i poprosi o wybór zamiast zgadywać.</p>
 <p>Przy kilku piętrach wskaż jeszcze, <b>na które piętro</b> wczytać dane.
 Grafik pozostałych pięter pozostanie nietknięty.</p>
 <p class="warn">Zaznaczona opcja <b>Zastąp istniejące wpisy</b> usuwa

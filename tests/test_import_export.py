@@ -171,10 +171,19 @@ def test_matching_is_case_and_diacritic_insensitive(db):
 def test_matching_by_surname_alone_when_unambiguous(db):
     emp = db.add_employee("Dziesiąta", "Ewa")
     db.add_employee("Testowy", "Jan")
-    for source in ("Dziesiąta", "Dziesiąta A.", "1. Dziesiąta Ewa"):
+    for source in ("Dziesiąta", "Dziesiąta E.", "Dziesiąta Ew", "1. Dziesiąta Ewa"):
         rows = [xi.ImportedRow(source_name=source, entries={1: "D"})]
         xi.match_employees(rows, db.employees())
         assert rows[0].employee_id == emp, source
+
+
+def test_a_wrong_initial_prevents_the_match(db):
+    """„Dziesiąta A." to nie jest Ewa — inicjał musi się zgadzać."""
+    db.add_employee("Dziesiąta", "Ewa")
+    rows = [xi.ImportedRow(source_name="Dziesiąta A.", entries={1: "D"})]
+    xi.match_employees(rows, db.employees())
+    assert rows[0].employee_id is None
+    assert rows[0].create_new
 
 
 def test_shared_surname_is_left_for_the_user_to_decide(db):
@@ -218,3 +227,78 @@ def test_polish_letters_normalise_to_plain_ascii(db, stored, in_file):
     rows = [xi.ImportedRow(source_name=f"{in_file} ANNA", entries={1: "D"})]
     xi.match_employees(rows, db.employees())
     assert rows[0].employee_id == emp
+
+
+def test_different_first_names_are_never_the_same_person(db):
+    """Usterka z prawdziwego importu: przy dwóch piętrach „Dejnek Aneta"
+    trafiała na wpisaną wcześniej „Dejnek Dorota", bo w bazie było wtedy
+    dokładnie jedno takie nazwisko."""
+    db.add_employee("Dejnek", "Dorota")
+    rows = [xi.ImportedRow(source_name="Dejnek Aneta", entries={1: "D"})]
+    xi.match_employees(rows, db.employees())
+    assert rows[0].employee_id is None
+    assert rows[0].create_new
+    assert not rows[0].ambiguous
+
+
+def test_namesakes_are_told_apart_by_first_name(db):
+    dorota = db.add_employee("Dejnek", "Dorota")
+    aneta = db.add_employee("Dejnek", "Aneta")
+    for source, expected in [
+        ("Dejnek Dorota", dorota), ("Dejnek Aneta", aneta),
+        ("DEJNEK ANETA", aneta), ("Dejnek D.", dorota), ("Dejnek A.", aneta),
+        ("Dejnek Ane", aneta),
+    ]:
+        rows = [xi.ImportedRow(source_name=source, entries={1: "D"})]
+        xi.match_employees(rows, db.employees())
+        assert rows[0].employee_id == expected, source
+
+
+def test_a_bare_shared_surname_is_left_to_the_user(db):
+    db.add_employee("Dejnek", "Dorota")
+    db.add_employee("Dejnek", "Aneta")
+    rows = [xi.ImportedRow(source_name="Dejnek", entries={1: "D"})]
+    xi.match_employees(rows, db.employees())
+    assert rows[0].employee_id is None
+    assert rows[0].ambiguous
+    # Nie zakładamy nowej osoby — to prawie na pewno jedna z tych dwóch.
+    assert not rows[0].create_new
+
+
+def test_match_kind_marks_how_confident_the_match_was(db):
+    db.add_employee("Kowalska", "Anna")
+    exact = [xi.ImportedRow(source_name="Kowalska Anna", entries={1: "D"})]
+    xi.match_employees(exact, db.employees())
+    assert exact[0].match_kind == "pełne"
+
+    short = [xi.ImportedRow(source_name="Kowalska", entries={1: "D"})]
+    xi.match_employees(short, db.employees())
+    assert short[0].match_kind == "nazwisko"
+
+    fresh = [xi.ImportedRow(source_name="Zupełnie Inna", entries={1: "D"})]
+    xi.match_employees(fresh, db.employees())
+    assert fresh[0].match_kind == ""
+
+
+def test_second_forename_does_not_break_the_match(db):
+    emp = db.add_employee("Kowalska", "Anna")
+    rows = [xi.ImportedRow(source_name="Kowalska Anna Maria", entries={1: "D"})]
+    xi.match_employees(rows, db.employees())
+    assert rows[0].employee_id == emp
+
+
+def test_importing_two_floors_keeps_namesakes_separate(db):
+    """Odtworzenie sytuacji z oddziału: każde piętro w osobnym pliku."""
+    floors = db.floors()
+    first = [xi.ImportedRow(source_name="Dejnek Dorota", entries={1: "D"})]
+    xi.match_employees(first, db.employees())
+    xi.apply_import(db, 2026, 6, first, floor_id=floors[0]["id"])
+
+    second = [xi.ImportedRow(source_name="Dejnek Aneta", entries={2: "N"})]
+    xi.match_employees(second, db.employees())
+    xi.apply_import(db, 2026, 6, second, replace=False, floor_id=floors[1]["id"])
+
+    people = sorted(
+        (e["last_name"], e["first_name"]) for e in db.employees()
+    )
+    assert people == [("Dejnek", "Aneta"), ("Dejnek", "Dorota")]
