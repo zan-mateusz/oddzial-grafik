@@ -118,3 +118,85 @@ def test_export_regenerates_the_repository_copies(tmp_path, monkeypatch):
     assert "|---|---|" in markdown
     # Znaczniki HTML nie mogą przeciekać do Markdowna.
     assert "<b>" not in markdown and "<td>" not in markdown
+
+
+# --- zgodność instrukcji z programem ---------------------------------------
+
+def _live_column_labels() -> set[str]:
+    from app.ui import rota_model as rm
+
+    return {
+        c[1] for c in (
+            rm.COL_NORM, rm.COL_MAIN, rm.COL_COVER, rm.COL_ALL, rm.COL_BALANCE,
+            rm.COL_DAY, rm.COL_NIGHT, rm.COL_HOLIDAY, rm.COL_LEAVE, rm.COL_SICK,
+        )
+    }
+
+
+def test_manual_does_not_mention_retired_columns():
+    """Nazwy kolumn zmieniały się już raz i instrukcja została w tyle."""
+    page = full_html()
+    for retired in ("Godz. tu", "Dyż. tu"):
+        assert retired not in page, f"instrukcja nadal opisuje kolumnę {retired}"
+
+
+def test_every_column_the_manual_names_really_exists():
+    live = _live_column_labels()
+    pattern = re.compile(
+        r"<b>(Dyż\.\s*\w+\.?|Godz\.\s*\w+\.?|Wymiar|Bilans|Dzień|Noc|Święta|L4|Dyżury)</b>"
+    )
+    named = set()
+    for _, _, html in SECTIONS:
+        named |= {m.strip() for m in pattern.findall(html)}
+    assert not (named - live), f"instrukcja opisuje nieistniejące kolumny: {named - live}"
+
+
+def test_summary_chapter_documents_every_column():
+    """Każda kolumna widoczna w programie musi być opisana."""
+    chapter = dict((s[0], s[2]) for s in SECTIONS)["podsumowanie"]
+    described = set(re.findall(r"<td><b>([^<]+)</b></td>", chapter))
+    missing = _live_column_labels() - described - {"Dyżury"}
+    assert not missing, f"nieopisane kolumny: {sorted(missing)}"
+
+
+def test_manual_states_the_actual_default_night_window():
+    from app.core.rules import Rules
+
+    rules = Rules()
+    window = f"{rules.night_start.strftime('%H:%M')}"
+    page = full_html()
+    assert window in page, "instrukcja podaje inną porę nocną niż program"
+
+
+def test_manual_matches_the_default_shift_codes():
+    """Kody wypisane w instrukcji muszą istnieć w programie."""
+    from app.core.shifts import DEFAULT_SHIFT_TYPES
+
+    codes = {t.code for t in DEFAULT_SHIFT_TYPES}
+    chapter = dict((s[0], s[2]) for s in SECTIONS)["wpisy"]
+    # Wpisy złożone z samych cyfr to czas trwania ("10" = 10 godzin), nie kod.
+    documented = {
+        token for token in re.findall(r"<td><code>([^<]+)</code></td>", chapter)
+        if not any(ch.isdigit() for ch in token) or token in codes
+    }
+    assert documented <= codes, f"instrukcja opisuje nieistniejące kody: {documented - codes}"
+    # Kody faktycznie używane na oddziale muszą być opisane.
+    assert {"D", "N", "U", "L4"} <= documented
+
+
+def test_generated_files_are_up_to_date():
+    """INSTRUKCJA.md w repozytorium musi odpowiadać treści z programu.
+
+    Wyłapuje sytuację, w której treść zmieniono, ale zapomniano uruchomić
+    tools/export_manual.py.
+    """
+    before = (ROOT / "INSTRUKCJA.md").read_text(encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "tools" / "export_manual.py")],
+        capture_output=True, text=True, cwd=ROOT,
+    )
+    assert result.returncode == 0, result.stderr
+    after = (ROOT / "INSTRUKCJA.md").read_text(encoding="utf-8")
+    assert before == after, (
+        "INSTRUKCJA.md jest nieaktualna — uruchom: python tools/export_manual.py"
+    )

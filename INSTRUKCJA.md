@@ -208,10 +208,14 @@ Dyżur na drugim piętrze zostaje nietknięty.
 
 ### Godziny osoby pracującej na dwóch piętrach
 
-Kolumny **Godz. tu** i **Dyż. tu** dotyczą oglądanego piętra.
-Kolumny **Godziny**, **Wymiar** i **Bilans** obejmują **cały
-miesiąc**, niezależnie od piętra — pracownik ma jedną umowę i jeden wymiar
-czasu pracy. Najedź myszką na podsumowanie, aby zobaczyć rozbicie na piętra.
+Kolumna **Dyż. gł.** pokazuje dyżury na macierzystym piętrze pracownika,
+a **Dyż. zast.** — te odbyte na innym piętrze. Podział zależy od osoby,
+a nie od tego, który grafik masz otwarty, więc na obu piętrach widać te same
+liczby. Razem dają wszystkie dyżury w miesiącu.
+
+**Wymiar** i **Bilans** obejmują cały miesiąc niezależnie od piętra —
+pracownik ma jedną umowę i jeden wymiar czasu pracy. Pełny opis wszystkich
+kolumn znajdziesz w rozdziale **Podsumowanie godzin**.
 
 ### Nazwy pięter
 
