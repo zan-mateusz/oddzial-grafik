@@ -266,3 +266,86 @@ def test_saving_a_new_update_address_clears_previous_checks(qapp, db):
 
     assert ud.should_check_today(db)
     assert not ud.was_dismissed(db, "0.1.1")
+
+
+def _pump(qapp, done, seconds=5):
+    """Kręci pętlą zdarzeń, aż warunek zajdzie albo minie czas."""
+    import time
+
+    deadline = time.time() + seconds
+    while not done() and time.time() < deadline:
+        qapp.processEvents()
+        time.sleep(0.01)
+    return done()
+
+
+def test_update_result_is_delivered_on_the_gui_thread(qapp, db, monkeypatch):
+    """Usterka z prawdziwego użycia: wynik docierał w wątku roboczym, więc
+    okno aktualizacji powstawało poza wątkiem okien i program się zawieszał."""
+    from PySide6.QtCore import QThread
+
+    from app.core import updates
+    from app.ui.main_window import MainWindow
+
+    release = updates.Release(
+        version="9.9.9", notes="", download_url="https://example/x.exe",
+        filename="Grafik-Instalator-9.9.9.exe",
+    )
+    monkeypatch.setattr(updates, "check_for_update", lambda repo: release)
+    monkeypatch.setattr(updates, "can_self_update", lambda: True)
+
+    seen = {}
+    monkeypatch.setattr(
+        MainWindow, "_on_update_result",
+        lambda self, rel, quiet: seen.update(thread=QThread.currentThread()),
+    )
+
+    db.set_setting("update_repo", "ktos/grafik")
+    window = MainWindow(db)
+    window.check_updates()
+
+    assert _pump(qapp, lambda: "thread" in seen), "wynik nigdy nie dotarł"
+    assert seen["thread"] is qapp.thread(), "wynik dotarł poza wątkiem okien"
+
+    window._update_thread.quit()
+    window._update_thread.wait(3000)
+    window.close()
+
+
+def test_update_failure_is_delivered_on_the_gui_thread(qapp, db, monkeypatch):
+    from PySide6.QtCore import QThread
+
+    from app.core import updates
+    from app.ui.main_window import MainWindow
+
+    def boom(repo):
+        raise updates.UpdateError("brak sieci")
+
+    monkeypatch.setattr(updates, "check_for_update", boom)
+    monkeypatch.setattr(updates, "can_self_update", lambda: True)
+
+    seen = {}
+    monkeypatch.setattr(
+        MainWindow, "_on_update_error",
+        lambda self, msg, quiet: seen.update(thread=QThread.currentThread()),
+    )
+
+    db.set_setting("update_repo", "ktos/grafik")
+    window = MainWindow(db)
+    window.check_updates()
+
+    assert _pump(qapp, lambda: "thread" in seen), "błąd nigdy nie dotarł"
+    assert seen["thread"] is qapp.thread()
+
+    window._update_thread.quit()
+    window._update_thread.wait(3000)
+    window.close()
+
+
+def test_check_is_connected_before_the_thread_starts(qapp, db, monkeypatch):
+    """Podpięcie po starcie wątku groziłoby zgubieniem szybkiej odpowiedzi."""
+    from app.ui.update_dialog import start_check
+
+    thread, checker = start_check(None, "ktos/grafik")
+    assert not thread.isRunning(), "start_check nie może sam uruchamiać wątku"
+    thread.deleteLater()

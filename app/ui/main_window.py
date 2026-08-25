@@ -89,6 +89,7 @@ class MainWindow(QMainWindow):
         self._build_menu()
         self._update_thread = None
         self._update_worker = None
+        self._update_quiet = True
         self.rota_view.dataEdited.connect(self._show_saved)
         self.rota_view.monthChanged.connect(lambda *_: self._update_status())
         self._update_status()
@@ -410,12 +411,20 @@ class MainWindow(QMainWindow):
 
         if not quiet:
             self.statusBar().showMessage("Sprawdzanie aktualizacji…", 4000)
-        self._update_thread, self._update_worker = start_check(
-            self,
-            repo,
-            on_found=lambda release: self._on_update_result(release, quiet),
-            on_failed=lambda message: self._on_update_error(message, quiet),
-        )
+
+        # Wynik odbieramy zwykłymi metodami tego okna. Dzięki temu Qt dostarcza
+        # je do wątku okien, gdzie wolno tworzyć okna dialogowe.
+        self._update_quiet = quiet
+        self._update_thread, self._update_worker = start_check(self, repo)
+        self._update_worker.finished.connect(self._on_update_found)
+        self._update_worker.failed.connect(self._on_update_failed)
+        self._update_thread.start()
+
+    def _on_update_found(self, release) -> None:
+        self._on_update_result(release, getattr(self, "_update_quiet", True))
+
+    def _on_update_failed(self, message: str) -> None:
+        self._on_update_error(message, getattr(self, "_update_quiet", True))
 
     def _on_update_result(self, release, quiet: bool) -> None:
         from app.ui.update_dialog import (

@@ -38,19 +38,25 @@ class UpdateChecker(QObject):
             self.failed.emit(f"Nieoczekiwany błąd: {exc}")
 
 
-def start_check(parent, repo: str, on_found, on_failed=None):
-    """Uruchamia sprawdzanie w tle. Zwraca (wątek, obiekt) do przechowania."""
+def start_check(parent, repo: str):
+    """Przygotowuje sprawdzanie w tle. Zwraca (wątek, obiekt) do przechowania.
+
+    Wątek NIE jest tu uruchamiany. Wywołujący musi najpierw podpiąć swoje
+    metody do sygnałów `finished` i `failed`, a dopiero potem wystartować
+    wątek — inaczej wynik mógłby nadejść, zanim ktokolwiek go słucha.
+
+    Podpinać wolno wyłącznie zwykłe metody obiektu QObject żyjącego w wątku
+    okien. Funkcja anonimowa nie ma przypisanego wątku, więc Qt wywołałoby ją
+    wprost w wątku roboczym — a tworzenie okien poza wątkiem głównym kończy
+    się zawieszeniem programu.
+    """
     thread = QThread(parent)
     checker = UpdateChecker(repo)
     checker.moveToThread(thread)
     thread.started.connect(checker.run)
-    checker.finished.connect(on_found)
-    if on_failed is not None:
-        checker.failed.connect(on_failed)
     for signal in (checker.finished, checker.failed):
         signal.connect(thread.quit)
     thread.finished.connect(checker.deleteLater)
-    thread.start()
     return thread, checker
 
 
