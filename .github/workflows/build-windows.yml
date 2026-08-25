@@ -16,6 +16,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -121,6 +123,29 @@ jobs:
             dist/*.exe
             dist/SHA256SUMS.txt
 
+      - name: Prepare release notes
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          # Opis wydania widzi uzytkownik w oknie aktualizacji, wiec pierwsze
+          # miejsce zajmuje tresc znacznika, a instrukcja instalacji idzie nizej.
+          tag="${GITHUB_REF#refs/tags/}"
+          notes="$(git tag -l --format='%(contents:body)' "$tag")"
+          if [ -z "$(echo "$notes" | tr -d '[:space:]')" ]; then
+            notes="$(git tag -l --format='%(contents)' "$tag")"
+          fi
+          {
+            if [ -n "$(echo "$notes" | tr -d '[:space:]')" ]; then
+              echo "$notes"
+              echo
+              echo "---"
+              echo
+            fi
+            cat packaging/release-body.md
+          } > release-notes.md
+          echo "--- podglad ---"
+          cat release-notes.md
+
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
@@ -128,20 +153,4 @@ jobs:
           files: |
             dist/*.exe
             dist/SHA256SUMS.txt
-          body: |
-            ## Instalacja
-
-            **Zalecane:** pobierz `Grafik-Instalator-*.exe` i uruchom.
-            Program zainstaluje sie dla biezacego uzytkownika i utworzy skrot
-            na pulpicie. Nie sa potrzebne uprawnienia administratora ani Python.
-
-            **Bez instalacji:** `Grafik-*-przenosny.exe` to pojedynczy plik —
-            wystarczy skopiowac go na pulpit i kliknac dwukrotnie.
-            Uruchamia sie kilka sekund dluzej.
-
-            ### Ostrzezenie Windows
-
-            Pliki nie sa podpisane cyfrowo, wiec przy pierwszym uruchomieniu
-            Windows pokaze komunikat "System Windows ochronil Twoj komputer".
-            Nalezy kliknac **Wiecej informacji**, a nastepnie
-            **Uruchom mimo to**. Komunikat pojawia sie tylko raz.
+          body_path: release-notes.md

@@ -13,3 +13,4 @@ grafik.db
 # Prawdziwe grafiki zawierają nazwiska pracowników — nie trafiają do repozytorium.
 samples/
 test-report.xml
+release-notes.md
