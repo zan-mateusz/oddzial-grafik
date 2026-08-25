@@ -36,11 +36,25 @@ def night_minutes(
     return total
 
 
+def is_night_shift(entry: Entry, rules: Rules | None = None) -> bool:
+    """Dyżur uznajemy za nocny, gdy sięga pory nocnej.
+
+    Działa również dla wpisów godzinowych, które nie mają kodu zmiany.
+    Sam czas trwania (np. "10") nie mówi, kiedy dyżur się zaczyna, więc
+    liczy się jako dzienny.
+    """
+    return night_minutes(entry.start, entry.end, rules) > 0
+
+
 @dataclass
 class EmployeeSummary:
     employee_id: int
     worked_minutes: int = 0
     night_minutes: int = 0
+    day_shifts: int = 0
+    day_minutes: int = 0
+    night_shifts: int = 0
+    night_shift_minutes: int = 0
     holiday_minutes: int = 0
     sunday_minutes: int = 0
     shift_days: int = 0
@@ -57,6 +71,7 @@ class EmployeeSummary:
     by_code: Counter[str] = field(default_factory=Counter)
     norm_minutes: int = 0
     leave_minutes: int = 0
+    sick_minutes: int = 0
 
     @property
     def balance_minutes(self) -> int:
@@ -118,6 +133,12 @@ def summarize_month(
                 s.night_minutes += night_minutes(entry.start, entry.end, rules)
                 if entry.minutes > 0:
                     s.shift_days += 1
+                    if is_night_shift(entry, rules):
+                        s.night_shifts += 1
+                        s.night_shift_minutes += entry.minutes
+                    else:
+                        s.day_shifts += 1
+                        s.day_minutes += entry.minutes
                     if is_holiday(day):
                         s.holidays_worked += 1
                         s.holiday_minutes += entry.minutes
@@ -136,6 +157,7 @@ def summarize_month(
                 s.sick_entries += 1
                 if rules.is_working_day(day):
                     s.sick_days += 1
+                    s.sick_minutes += rules.leave_minutes
             elif cat is Category.ABSENCE:
                 s.absence_days += 1
             elif cat is Category.OFF:

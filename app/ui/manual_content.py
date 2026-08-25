@@ -197,26 +197,48 @@ gdyby było potrzebne.</p>
 
 ("podsumowanie", "Podsumowanie godzin", """
 <h2>Podsumowanie godzin</h2>
-<p>Kolumny po prawej stronie tabeli liczą się same po każdej zmianie:</p>
+<p>Kolumny po prawej stronie tabeli przeliczają się same po każdej zmianie
+w grafiku. Większość podaje <b>liczbę dni i łączny czas</b> w postaci
+<code>14 (168:00)</code> — czternaście dyżurów, razem 168 godzin.</p>
+
 <table>
 <tr><th>Kolumna</th><th>Co pokazuje</th></tr>
-<tr><td><b>Godz. tu</b></td><td>godziny wypracowane na oglądanym piętrze
-    (tylko przy kilku piętrach)</td></tr>
-<tr><td><b>Dyż. tu</b></td><td>liczba dyżurów na oglądanym piętrze</td></tr>
-<tr><td><b>Godziny</b></td><td>godziny wypracowane w całym miesiącu</td></tr>
-<tr><td><b>Wymiar</b></td><td>ile godzin przypada do przepracowania, po
-    uwzględnieniu etatu, świąt, urlopów i zwolnień</td></tr>
-<tr><td><b>Bilans</b></td><td>różnica: nadgodziny na pomarańczowo,
-    niedogodziny na czerwono, zero na zielono</td></tr>
-<tr><td><b>Dyż.</b></td><td>liczba dyżurów w miesiącu</td></tr>
-<tr><td><b>Noc</b></td><td>godziny przypadające na porę nocną</td></tr>
-<tr><td><b>Święta</b></td><td>godziny przepracowane w święta ustawowo wolne</td></tr>
-<tr><td><b>Urlop</b></td><td>liczba <b>zużytych</b> dni urlopu</td></tr>
-<tr><td><b>L4</b></td><td>dni zwolnienia lekarskiego</td></tr>
+<tr><td><b>Wymiar</b></td><td>ile godzin przypada do przepracowania w tym
+    miesiącu, po uwzględnieniu etatu, świąt, urlopów i zwolnień</td></tr>
+<tr><td><b>Dyż. gł.</b></td><td>dyżury na własnym piętrze pracownika</td></tr>
+<tr><td><b>Dyż. zast.</b></td><td>dyżury na innym piętrze, czyli zastępstwa</td></tr>
+<tr><td><b>Bilans</b></td><td>nadgodziny na pomarańczowo, niedogodziny na
+    czerwono, równo na zielono</td></tr>
+<tr><td><b>Dzień</b></td><td>dyżury dzienne</td></tr>
+<tr><td><b>Noc</b></td><td>dyżury nocne, czyli sięgające pory nocnej</td></tr>
+<tr><td><b>Święta</b></td><td>dyżury w święta ustawowo wolne od pracy</td></tr>
+<tr><td><b>Urlop</b></td><td>zużyty urlop i odpowiadający mu czas pracy</td></tr>
+<tr><td><b>L4</b></td><td>zwolnienie lekarskie — kolumna pojawia się tylko
+    wtedy, gdy w danym miesiącu jest jakiś taki wpis</td></tr>
 </table>
-<p>Najedź myszką na dowolną z tych komórek — podpowiedź pokaże szczegóły,
-np. przyjętą porę nocną, liczbę dyżurów niedzielnych albo ile wpisów
-urlopowych pominięto.</p>
+
+<h3>Dyżury własne i zastępcze</h3>
+<p>Podział zależy od <b>pracownika</b>, a nie od tego, który grafik masz
+otwarty. Dyżur odbyty na macierzystym piętrze liczy się jako własny, każdy inny
+jako zastępstwo — i wygląda tak samo niezależnie od oglądanego piętra.
+Razem dają wszystkie dyżury w miesiącu.</p>
+<p>Przy jednym piętrze podział nie ma sensu i zostaje jedna kolumna
+<b>Dyżury</b>.</p>
+
+<h3>Dzień i noc</h3>
+<p>Dyżur uznawany jest za nocny, jeżeli sięga pory nocnej ustawionej na
+zakładce <b>Zasady</b> (domyślnie 22:00–6:00). Dyżur <code>N</code> jest więc
+nocny, <code>D</code> dzienny, a wpis podany samym czasem trwania
+(np. <code>7:30</code>) liczy się jako dzienny, bo nie wiadomo, o której się
+zaczyna.</p>
+<p>Podpowiedź nad kolumną <b>Noc</b> pokazuje dodatkowo, ile godzin przypadło
+na samą porę nocną — to ta liczba jest podstawą dodatku.</p>
+
+<h3>Podpowiedzi</h3>
+<p>Najedź myszką na dowolną komórkę podsumowania, a zobaczysz szczegóły:
+przyjętą porę nocną, liczbę dyżurów niedzielnych, liczbę pominiętych wpisów
+urlopowych albo rozbicie bilansu na godziny wypracowane i wymiar.</p>
+
 <p>Pod tabelą widać liczbę osób w grafiku, sumę godzin, listę świąt w tym
 miesiącu oraz obsadę dnia wskazanego kursorem.</p>
 """),

@@ -66,17 +66,39 @@ def test_switching_floors_changes_the_roster(qapp, db):
     window.close()
 
 
-def test_floor_columns_appear_only_with_several_floors(qapp, db):
-    from app.ui.rota_model import FLOOR_COLUMNS, MONTH_COLUMNS, RotaModel
+def test_cover_columns_appear_only_with_several_floors(qapp, db):
+    from app.ui.rota_model import RotaModel
 
     today = dt.date.today()
     model = RotaModel(db, today.year, today.month, db.floors()[0]["id"])
-    assert len(model.summary_columns) == len(FLOOR_COLUMNS) + len(MONTH_COLUMNS)
+    keys = [c[0] for c in model.summary_columns]
+    assert "glowne" in keys and "zastepcze" in keys
 
     for floor in db.floors()[1:]:
         db.delete_floor(floor["id"])
     model.set_floor(db.floors()[0]["id"])
-    assert len(model.summary_columns) == len(MONTH_COLUMNS)
+    keys = [c[0] for c in model.summary_columns]
+    # Przy jednym piętrze rozróżnienie nie ma sensu — zostaje jedna kolumna.
+    assert "glowne" in keys and "zastepcze" not in keys
+
+
+def test_sick_column_appears_only_when_needed(qapp, db):
+    import datetime as dt2
+
+    from app.ui.rota_model import RotaModel
+
+    today = dt2.date.today()
+    emp = db.add_employee("Testowa", "Osoba")
+    model = RotaModel(db, today.year, today.month, db.floors()[0]["id"])
+    assert "l4" not in [c[0] for c in model.summary_columns]
+
+    # Wpisanie zwolnienia dokłada kolumnę.
+    workday = dt2.date(today.year, today.month, 1)
+    while workday.weekday() >= 5:
+        workday += dt2.timedelta(days=1)
+    db.set_entry(emp, workday, "L4")
+    model.reload()
+    assert "l4" in [c[0] for c in model.summary_columns]
 
 
 def test_employees_and_shift_type_tabs_build(qapp, db):
@@ -205,3 +227,27 @@ def test_reset_dialog_builds_and_reports_counts(qapp, db):
     dialog.opt_all.setChecked(True)
     assert dialog.scope() == ResetDialog.EVERYTHING
     dialog.close()
+
+
+def test_column_set_is_the_same_on_every_floor(qapp, db):
+    """Przełączenie piętra nie może zmieniać zestawu kolumn."""
+    import datetime as dt2
+
+    from app.ui.rota_model import RotaModel
+
+    today = dt2.date.today()
+    floors = db.floors()
+    first = db.add_employee("Pierwsza", "Anna", floor_id=floors[0]["id"])
+    db.add_employee("Druga", "Barbara", floor_id=floors[1]["id"])
+
+    workday = dt2.date(today.year, today.month, 1)
+    while workday.weekday() >= 5:
+        workday += dt2.timedelta(days=1)
+    db.set_entry(first, workday, "L4")          # zwolnienie tylko na I piętrze
+
+    model = RotaModel(db, today.year, today.month, floors[0]["id"])
+    on_first = [c[0] for c in model.summary_columns]
+    model.set_floor(floors[1]["id"])
+    on_second = [c[0] for c in model.summary_columns]
+    assert on_first == on_second
+    assert "l4" in on_first

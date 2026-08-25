@@ -73,6 +73,16 @@ def fmt_minutes(minutes: int) -> str:
     return f"{sign}{minutes // 60}:{minutes % 60:02d}"
 
 
+def fmt_days_hours(days: int, minutes: int) -> str:
+    """Zestawienie liczby dni i godzin w jednej komórce: 14 (168:00).
+
+    Puste, gdy nic nie ma — pusta kolumna czyta się lepiej niż rząd zer.
+    """
+    if not days and not minutes:
+        return ""
+    return f"{days} ({fmt_minutes(minutes)})"
+
+
 def fmt_hours_decimal(minutes: int) -> str:
     return f"{minutes / 60:.2f}".replace(".", ",")
 

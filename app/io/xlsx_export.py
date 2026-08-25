@@ -14,7 +14,9 @@ from app.core.calendar_pl import (
     month_days, month_norm,
 )
 from app.core.rules import load_rules
-from app.core.shifts import Category, Entry, ShiftType, fmt_minutes, resolve
+from app.core.shifts import (
+    Category, Entry, ShiftType, fmt_days_hours, fmt_minutes, resolve,
+)
 from app.core.stats import summarize_month
 
 THIN = Side(style="thin", color="B0B6C0")
@@ -44,16 +46,28 @@ CENTER = Alignment(horizontal="center", vertical="center")
 CENTER_WRAP = Alignment(horizontal="center", vertical="center", wrap_text=True)
 LEFT = Alignment(horizontal="left", vertical="center")
 
-SUMMARY_HEADERS = [
-    ("Godziny", 9), ("Wymiar", 9), ("Bilans", 9), ("Dyżury", 8),
-    ("Noc", 8), ("Święta", 8), ("Urlop", 7), ("L4", 6),
-]
-# Kolumny dotyczące wyłącznie tego piętra — dopisywane, gdy pięter jest więcej.
-FLOOR_HEADERS = [("Godz. tu", 9), ("Dyż. tu", 8)]
+# Kolumny podsumowania: (klucz, nagłówek, szerokość). Zestaw jest taki sam jak
+# na ekranie — dobierany do zawartości miesiąca.
+NARROW = 10
+WIDE = 13
 
 
-def _headers(multi: bool):
-    return (FLOOR_HEADERS + SUMMARY_HEADERS) if multi else SUMMARY_HEADERS
+def _headers(multi: bool, has_sick: bool):
+    columns = [("wymiar", "Wymiar", NARROW)]
+    if multi:
+        columns += [("glowne", "Dyż. gł.", WIDE), ("zastepcze", "Dyż. zast.", WIDE)]
+    else:
+        columns.append(("glowne", "Dyżury", WIDE))
+    columns += [
+        ("bilans", "Bilans", NARROW),
+        ("dzien", "Dzień", WIDE),
+        ("noc", "Noc", WIDE),
+        ("swieta", "Święta", WIDE),
+        ("urlop", "Urlop", WIDE),
+    ]
+    if has_sick:
+        columns.append(("l4", "L4", WIDE))
+    return columns
 
 
 def _hex(color: str) -> str:
@@ -77,6 +91,8 @@ def export_month(
     # Sumy miesięczne liczymy ze wszystkich pięter — pracownik ma jeden wymiar
     # czasu pracy niezależnie od tego, gdzie odbył dyżur.
     all_entries = _resolved(db.month_entries(year, month), types)
+    entry_floors = db.month_entry_floors(year, month)
+    has_sick = any(e.category is Category.SICK for e in all_entries.values())
 
     floors = db.floors() or [None]
     wb = Workbook()
@@ -87,24 +103,31 @@ def export_month(
         floor_label = floor["name"] if floor is not None else ""
         employees = db.employees_for_month(year, month, floor_id)
         floor_entries = _resolved(db.month_entries(year, month, floor_id), types)
-        month_summaries = summarize_month(
-            year, month, employees, all_entries, rules
-        )
-        floor_summaries = summarize_month(
-            year, month, employees, floor_entries, rules
-        )
+        # Podział na dyżury własne i zastępcze jest cechą pracownika, więc
+        # liczymy go z wpisów całego miesiąca, nie tylko z tego piętra.
+        home = {e["id"]: e["floor_id"] for e in employees}
+        main_entries, cover_entries = {}, {}
+        for key, entry in all_entries.items():
+            where = entry_floors.get(key)
+            target = main_entries if where == home.get(key[0]) else cover_entries
+            target[key] = entry
+
+        month_summaries = summarize_month(year, month, employees, all_entries, rules)
+        main_summaries = summarize_month(year, month, employees, main_entries, rules)
+        cover_summaries = summarize_month(year, month, employees, cover_entries, rules)
 
         ws = wb.create_sheet(_sheet_title(floor_label, year, month))
         _write_title(ws, year, month, norm, ward_name, len(days), floor_label)
         header_row = 4
         multi = len(floors) > 1 and floor is not None
-        _write_headers(ws, header_row, days, multi)
+        _write_headers(ws, header_row, days, multi, has_sick)
         last_row = _write_body(
             ws, header_row + 1, days, employees, floor_entries,
-            month_summaries, floor_summaries, multi, floor_id,
+            month_summaries, main_summaries, cover_summaries, multi,
+            floor_id, has_sick,
         )
         _write_legend(ws, last_row + 2, db.shift_types(), multi)
-        _apply_layout(ws, days, header_row, last_row, multi)
+        _apply_layout(ws, days, header_row, last_row, multi, has_sick)
 
     wb.save(path)
     return path
@@ -129,7 +152,7 @@ def _sheet_title(floor_label: str, year: int, month: int) -> str:
 
 def _write_title(ws: Worksheet, year: int, month: int, norm, ward: str, n_days: int,
                  floor_label: str = "") -> None:
-    total_cols = 2 + n_days + len(SUMMARY_HEADERS)
+    total_cols = 2 + n_days + 9
     heading = f"Grafik dyżurów — {PL_MONTHS_TITLE[month - 1]} {year}"
     if floor_label:
         heading += f" — {floor_label}"
@@ -148,7 +171,8 @@ def _write_title(ws: Worksheet, year: int, month: int, norm, ward: str, n_days: 
     ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=min(total_cols, 12))
 
 
-def _write_headers(ws: Worksheet, row: int, days: list[dt.date], multi: bool = False) -> None:
+def _write_headers(ws: Worksheet, row: int, days: list[dt.date], multi: bool = False,
+                   has_sick: bool = False) -> None:
     ws.cell(row=row, column=1, value="Nazwisko i imię")
     ws.cell(row=row, column=2, value="Etat")
     for col in (1, 2):
@@ -171,11 +195,12 @@ def _write_headers(ws: Worksheet, row: int, days: list[dt.date], multi: bool = F
             c.comment = _comment(name)
 
     start = 3 + len(days)
-    headers = _headers(multi)
-    for i, (label, _) in enumerate(headers):
+    for i, (key, label, _) in enumerate(_headers(multi, has_sick)):
         c = ws.cell(row=row, column=start + i, value=label)
         c.font = Font(bold=True, size=9)
-        c.fill = PatternFill("solid", fgColor="DCE6F1" if multi and i < 2 else "E5E7EB")
+        c.fill = PatternFill(
+            "solid", fgColor="DCE6F1" if key in ("wymiar", "bilans") else "E5E7EB"
+        )
         c.alignment = CENTER_WRAP
         c.border = BORDER
 
@@ -187,8 +212,27 @@ def _comment(text: str):
     return c
 
 
+def _summary_values(month, main, cover) -> dict[str, str]:
+    """Te same liczby, które widać na ekranie."""
+    if month is None:
+        return {}
+    return {
+        "wymiar": month.norm_hhmm,
+        "glowne": fmt_days_hours(main.shift_days, main.worked_minutes) if main else "",
+        "zastepcze": fmt_days_hours(cover.shift_days, cover.worked_minutes)
+                     if cover else "",
+        "bilans": month.balance_hhmm,
+        "dzien": fmt_days_hours(month.day_shifts, month.day_minutes),
+        "noc": fmt_days_hours(month.night_shifts, month.night_shift_minutes),
+        "swieta": fmt_days_hours(month.holidays_worked, month.holiday_minutes),
+        "urlop": fmt_days_hours(month.leave_days, month.leave_minutes),
+        "l4": fmt_days_hours(month.sick_days, month.sick_minutes),
+    }
+
+
 def _write_body(ws, first_row, days, employees, entries, summaries,
-                floor_summaries=None, multi=False, floor_id=None) -> int:
+                main_summaries=None, cover_summaries=None, multi=False,
+                floor_id=None, has_sick=False) -> int:
     row = first_row
     for emp in employees:
         name = f"{emp['last_name']} {emp['first_name']}".strip()
@@ -223,40 +267,28 @@ def _write_body(ws, first_row, days, employees, entries, summaries,
                 if fill:
                     cell.fill = PatternFill("solid", fgColor=fill)
 
-        s = summaries.get(emp["id"])
-        month_values = (
-            [s.worked_hhmm, s.norm_hhmm, s.balance_hhmm, s.shift_days,
-             fmt_minutes(s.night_minutes),
-             fmt_minutes(s.holiday_minutes) if s.holiday_minutes else None,
-             s.leave_days or None, s.sick_days or None]
-            if s else [None] * len(SUMMARY_HEADERS)
+        values = _summary_values(
+            summaries.get(emp["id"]),
+            (main_summaries or {}).get(emp["id"]),
+            (cover_summaries or {}).get(emp["id"]),
         )
-        values = list(month_values)
-        offset = 0
-        if multi:
-            fs = (floor_summaries or {}).get(emp["id"])
-            floor_values = (
-                [fmt_minutes(fs.worked_minutes), fs.shift_days] if fs else [None, None]
-            )
-            values = floor_values + month_values
-            offset = len(FLOOR_HEADERS)
-
+        month = summaries.get(emp["id"])
         start = 3 + len(days)
-        for i, val in enumerate(values):
-            cell = ws.cell(row=row, column=start + i, value=val)
+        for i, (key, _, _) in enumerate(_headers(multi, has_sick)):
+            cell = ws.cell(row=row, column=start + i, value=values.get(key) or None)
             cell.alignment = CENTER
             cell.border = BORDER
-            is_floor_col = multi and i < offset
+            summary_col = key in ("wymiar", "bilans")
             cell.fill = PatternFill(
-                "solid", fgColor="EFF3F8" if is_floor_col else "F7F8FA"
+                "solid", fgColor="EFF3F8" if summary_col else "F7F8FA"
             )
-            j = i - offset
-            bold = (not is_floor_col) and j in (0, 2)
-            color = "000000"
-            if (not is_floor_col) and j == 2 and s:
-                color = "B45309" if s.balance_minutes > 0 else (
-                    "B00020" if s.balance_minutes < 0 else "15803D")
-            cell.font = Font(size=9, bold=bold, color=color)
+            colour = "000000"
+            if key == "bilans" and month:
+                colour = "B45309" if month.balance_minutes > 0 else (
+                    "B00020" if month.balance_minutes < 0 else "15803D")
+            elif key == "zastepcze":
+                colour = "8C4A00"
+            cell.font = Font(size=9, bold=key == "bilans", color=colour)
         row += 1
     return row - 1
 
@@ -300,13 +332,13 @@ def _write_legend(ws: Worksheet, row: int, shift_types: list[ShiftType],
 
 
 def _apply_layout(ws: Worksheet, days, header_row: int, last_row: int,
-                  multi: bool = False) -> None:
+                  multi: bool = False, has_sick: bool = False) -> None:
     ws.column_dimensions["A"].width = 26
     ws.column_dimensions["B"].width = 6
     for i in range(len(days)):
         ws.column_dimensions[get_column_letter(3 + i)].width = 4.6
     start = 3 + len(days)
-    for i, (_, width) in enumerate(_headers(multi)):
+    for i, (_, _, width) in enumerate(_headers(multi, has_sick)):
         ws.column_dimensions[get_column_letter(start + i)].width = width
 
     ws.row_dimensions[header_row].height = 30

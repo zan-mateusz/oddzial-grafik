@@ -19,7 +19,9 @@ from app.ui.rota_model import RotaModel
 
 DAY_COL_MIN = 26
 DAY_COL_MAX = 44
-SUMMARY_COL_WIDTH = 56
+SUMMARY_COL_WIDTH = 82
+NARROW_SUMMARY = {"wymiar", "bilans"}
+NARROW_COL_WIDTH = 64
 NAME_COL_WIDTH = 186
 
 
@@ -361,11 +363,18 @@ class RotaView(QWidget):
         n_days = len(self.model.days)
         if not n_days:
             return
-        summary_width = SUMMARY_COL_WIDTH * len(self.model.summary_columns)
+        summary_width = sum(
+            NARROW_COL_WIDTH if key in NARROW_SUMMARY else SUMMARY_COL_WIDTH
+            for key, _, _ in self.model.summary_columns
+        )
         available = self.table.viewport().width() - summary_width - 4
         day_width = max(DAY_COL_MIN, min(DAY_COL_MAX, available // n_days))
         for col in range(self.model.columnCount()):
-            width = SUMMARY_COL_WIDTH if self.model.is_summary_column(col) else day_width
+            if self.model.is_summary_column(col):
+                key = self.model.summary_columns[col - n_days][0]
+                width = NARROW_COL_WIDTH if key in NARROW_SUMMARY else SUMMARY_COL_WIDTH
+            else:
+                width = day_width
             self.table.setColumnWidth(col, width)
 
     def resizeEvent(self, event):
