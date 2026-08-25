@@ -68,8 +68,30 @@ def should_check_today(db) -> bool:
     return (dt.date.today() - when).days >= CHECK_INTERVAL_DAYS
 
 
-def mark_checked(db) -> None:
+def mark_checked(db, outcome: str = "") -> None:
+    """Zapisuje datę sprawdzenia. Wywoływane dopiero po jego zakończeniu —
+    inaczej nieudana próba blokowałaby kolejne na całą dobę."""
     db.set_setting("update_last_check", dt.date.today().isoformat())
+    db.set_setting(
+        "update_last_result",
+        f"{dt.datetime.now().strftime('%Y-%m-%d %H:%M')} — {outcome}" if outcome else "",
+    )
+
+
+def last_check_description(db) -> str:
+    """Opis ostatniego sprawdzenia — do okna „O programie"."""
+    return db.get_setting("update_last_result", "")
+
+
+def forget_checks(db) -> None:
+    """Kasuje ślady po sprawdzaniu, żeby kolejne uruchomienie sprawdziło od nowa.
+
+    Wywoływane po zmianie adresu aktualizacji: poprzednie wyniki dotyczyły
+    innego źródła i nie mają już znaczenia.
+    """
+    db.set_setting("update_last_check", "")
+    db.set_setting("update_dismissed_version", "")
+    db.set_setting("update_last_result", "")
 
 
 def was_dismissed(db, version: str) -> bool:

@@ -251,3 +251,18 @@ def test_column_set_is_the_same_on_every_floor(qapp, db):
     on_second = [c[0] for c in model.summary_columns]
     assert on_first == on_second
     assert "l4" in on_first
+
+
+def test_saving_a_new_update_address_clears_previous_checks(qapp, db):
+    from app.ui import update_dialog as ud
+    from app.ui.settings_dialog import SettingsDialog
+
+    ud.mark_checked(db, "brak nowszej wersji")
+    ud.dismiss(db, "0.1.1")
+
+    dialog = SettingsDialog(db)
+    dialog.ed_repo.setText("zan-mateusz/oddzial-grafik")
+    dialog._save()
+
+    assert ud.should_check_today(db)
+    assert not ud.was_dismissed(db, "0.1.1")

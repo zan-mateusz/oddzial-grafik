@@ -166,6 +166,11 @@ class SettingsDialog(QDialog):
             return
         self.db.set_setting("ward_name", self.ed_ward.text().strip())
         self.db.set_setting("daily_norm_minutes", str(self.cmb_norm.currentData()))
+        if repo != self.db.get_setting("update_repo", ""):
+            # Nowe źródło — poprzednie wyniki i odmowy przestają obowiązywać.
+            from app.ui.update_dialog import forget_checks
+
+            forget_checks(self.db)
         self.db.set_setting("update_repo", repo)
         self.db.set_setting(
             "update_check_enabled", "1" if self.chk_updates.isChecked() else "0"

@@ -11,6 +11,7 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -58,22 +59,30 @@ def is_newer(candidate: str, current: str = __version__) -> bool:
 # --- rodzaj instalacji ------------------------------------------------------
 
 def install_kind() -> str:
-    """Zwraca "installer", "portable" albo "source"."""
+    """Zwraca "installer", "portable" albo "source".
+
+    Wersja jednoplikowa rozpakowuje się przy każdym uruchomieniu do katalogu
+    tymczasowego systemu — i to jest najpewniejsza oznaka. Wersja katalogowa
+    trzyma zasoby obok pliku .exe.
+    """
     if not getattr(sys, "frozen", False):
         return "source"
     bundle = getattr(sys, "_MEIPASS", None)
     if bundle is None:
         return "installer"
-    # W wersji jednoplikowej zasoby lądują w katalogu tymczasowym, oddzielnie
-    # od samego pliku .exe; w wersji katalogowej leżą tuż obok niego.
     try:
-        return (
-            "installer"
-            if Path(bundle).parent == Path(sys.executable).parent
-            else "portable"
-        )
+        bundle_path = Path(bundle).resolve()
+        exe_dir = Path(sys.executable).resolve().parent
+        # Zasoby leżące przy pliku programu to wersja katalogowa. Sprawdzamy to
+        # najpierw, bo katalog tymczasowy bywa nadrzędny także dla innych miejsc.
+        if bundle_path == exe_dir or exe_dir in bundle_path.parents:
+            return "installer"
+        temp_root = Path(tempfile.gettempdir()).resolve()
+        if bundle_path == temp_root or temp_root in bundle_path.parents:
+            return "portable"
     except (OSError, ValueError):
-        return "portable"
+        pass
+    return "installer"
 
 
 def can_self_update() -> bool:

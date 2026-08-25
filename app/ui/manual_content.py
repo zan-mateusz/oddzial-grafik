@@ -474,6 +474,13 @@ katalog, w którym się znajduje.</p>
 Jeżeli się nie zgadza, program go <b>nie uruchomi</b> i poprosi o ponowną
 próbę.</p>
 
+<h3>Kiedy program sprawdza</h3>
+<p>Najwyżej raz na dobę, w tle, chwilę po uruchomieniu. Jeśli chcesz sprawdzić
+od razu — <b>Pomoc → Sprawdź aktualizacje</b>. To polecenie działa zawsze,
+niezależnie od tego, czy program sprawdzał już dzisiaj, i mówi wprost, gdy
+czegoś nie da się pobrać.</p>
+<p>Wynik ostatniego sprawdzenia widać w <b>Pomoc → O programie</b>.</p>
+
 <h3>Wyłączenie sprawdzania</h3>
 <p>W <b>Narzędzia → Ustawienia</b> możesz odznaczyć <b>Sprawdzaj aktualizacje
 przy uruchomieniu</b>. Program przestanie wtedy łączyć się z internetem;

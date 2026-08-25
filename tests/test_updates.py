@@ -1,5 +1,6 @@
 """Testy aktualizacji programu. Serwis jest podstawiany — bez sieci."""
 import hashlib
+from pathlib import Path
 import json
 
 import pytest
@@ -305,3 +306,85 @@ def test_cancelling_after_data_was_written_cleans_up(payload_service, tmp_path):
         updates.download(_release(), tmp_path, cancelled=cancel_on_second_check)
     assert calls["n"] > 1, "anulowanie nie zostało w ogóle sprawdzone"
     assert list(tmp_path.iterdir()) == []
+
+
+# --- rozpoznanie rodzaju instalacji ----------------------------------------
+
+def test_install_kind_detects_a_one_file_build(monkeypatch, tmp_path):
+    """Wersja przenośna rozpakowuje się do katalogu tymczasowego."""
+    import tempfile as tf
+
+    temp_bundle = Path(tf.gettempdir()) / "_MEI123456"
+    monkeypatch.setattr(updates.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(updates.sys, "_MEIPASS", str(temp_bundle), raising=False)
+    monkeypatch.setattr(updates.sys, "executable", str(tmp_path / "Grafik.exe"))
+    assert updates.install_kind() == "portable"
+
+
+def test_install_kind_detects_an_installed_build(monkeypatch, tmp_path):
+    """Wersja katalogowa trzyma zasoby obok pliku programu."""
+    app_dir = tmp_path / "Grafik"
+    (app_dir / "_internal").mkdir(parents=True)
+    monkeypatch.setattr(updates.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(updates.sys, "_MEIPASS", str(app_dir / "_internal"),
+                        raising=False)
+    monkeypatch.setattr(updates.sys, "executable", str(app_dir / "Grafik.exe"))
+    assert updates.install_kind() == "installer"
+    assert updates.can_self_update()
+
+
+def test_install_kind_handles_meipass_equal_to_the_program_folder(monkeypatch, tmp_path):
+    """Starsze wydania PyInstallera wskazują wprost katalog programu."""
+    app_dir = tmp_path / "Grafik"
+    app_dir.mkdir()
+    monkeypatch.setattr(updates.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(updates.sys, "_MEIPASS", str(app_dir), raising=False)
+    monkeypatch.setattr(updates.sys, "executable", str(app_dir / "Grafik.exe"))
+    assert updates.install_kind() == "installer"
+
+
+# --- częstotliwość sprawdzania ---------------------------------------------
+
+def test_a_failed_check_does_not_use_up_the_daily_attempt(tmp_path):
+    """Usterka z prawdziwego użycia: znacznik zapisywano przed sprawdzeniem,
+    więc nieudana próba blokowała kolejne aż do następnego dnia."""
+    from app.db import Database
+    from app.ui import update_dialog as ud
+
+    db = Database(tmp_path / "t.db")
+    assert ud.should_check_today(db)
+
+    # Nieudane sprawdzenie zapisuje powód, ale zostawia datę pustą.
+    ud.mark_checked(db, "nie udało się sprawdzić — brak sieci")
+    db.set_setting("update_last_check", "")
+    assert ud.should_check_today(db)
+    assert "nie udało się" in ud.last_check_description(db)
+    db.close()
+
+
+def test_a_successful_check_records_its_outcome(tmp_path):
+    from app.db import Database
+    from app.ui import update_dialog as ud
+
+    db = Database(tmp_path / "t.db")
+    ud.mark_checked(db, "znaleziono wersję 0.1.1")
+    assert not ud.should_check_today(db)
+    assert "0.1.1" in ud.last_check_description(db)
+    db.close()
+
+
+def test_changing_the_source_starts_checking_afresh(tmp_path):
+    """Po zmianie adresu poprzednie wyniki i odmowy przestają obowiązywać."""
+    from app.db import Database
+    from app.ui import update_dialog as ud
+
+    db = Database(tmp_path / "t.db")
+    ud.mark_checked(db, "brak nowszej wersji")
+    ud.dismiss(db, "0.1.1")
+    assert not ud.should_check_today(db)
+
+    ud.forget_checks(db)
+    assert ud.should_check_today(db)
+    assert not ud.was_dismissed(db, "0.1.1")
+    assert ud.last_check_description(db) == ""
+    db.close()

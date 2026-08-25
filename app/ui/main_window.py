@@ -388,7 +388,7 @@ class MainWindow(QMainWindow):
 
     def _run_update_check(self, quiet: bool) -> None:
         from app.core.updates import can_self_update
-        from app.ui.update_dialog import mark_checked, start_check
+        from app.ui.update_dialog import start_check
 
         repo = self.db.get_setting("update_repo", "")
         if not repo:
@@ -408,7 +408,6 @@ class MainWindow(QMainWindow):
             )
             return
 
-        mark_checked(self.db)
         if not quiet:
             self.statusBar().showMessage("Sprawdzanie aktualizacji…", 4000)
         self._update_thread, self._update_worker = start_check(
@@ -419,8 +418,16 @@ class MainWindow(QMainWindow):
         )
 
     def _on_update_result(self, release, quiet: bool) -> None:
-        from app.ui.update_dialog import UpdateDialog, dismiss, was_dismissed
+        from app.ui.update_dialog import (
+            UpdateDialog, dismiss, mark_checked, was_dismissed,
+        )
 
+        # Znacznik zapisujemy dopiero teraz — po sprawdzeniu, które się udało.
+        mark_checked(
+            self.db,
+            "brak nowszej wersji" if release is None
+            else f"znaleziono wersję {release.version}",
+        )
         if release is None:
             if not quiet:
                 QMessageBox.information(
@@ -436,12 +443,22 @@ class MainWindow(QMainWindow):
             dismiss(self.db, release.version)
 
     def _on_update_error(self, message: str, quiet: bool) -> None:
+        from app.ui.update_dialog import mark_checked
+
+        # Data sprawdzenia zostaje nietknięta, żeby ponowić próbę przy następnym
+        # uruchomieniu; zapisujemy tylko powód niepowodzenia.
+        mark_checked(self.db, f"nie udało się sprawdzić — {message.splitlines()[0]}")
+        self.db.set_setting("update_last_check", "")
         if quiet:
+            self.statusBar().showMessage(
+                "Nie udało się sprawdzić aktualizacji", 5000
+            )
             return
         QMessageBox.warning(self, "Aktualizacje", message)
 
     def show_version(self) -> None:
         from app.core.updates import install_kind
+        from app.ui.update_dialog import last_check_description
 
         kinds = {
             "installer": "wersja zainstalowana",
@@ -453,7 +470,10 @@ class MainWindow(QMainWindow):
             f"<h3>Grafik dyżurów</h3>"
             f"<p>Wersja <b>{__version__}</b><br>"
             f"<span style='color:#555'>{kinds.get(install_kind(), '')}</span></p>"
-            f"<p>Plik danych:<br><code>{config.db_path()}</code></p>",
+            f"<p>Plik danych:<br><code>{config.db_path()}</code></p>"
+            + (f"<p>Ostatnie sprawdzenie aktualizacji:<br>"
+               f"<span style='color:#555'>{last_check_description(self.db)}</span></p>"
+               if last_check_description(self.db) else ""),
         )
 
     def show_about(self) -> None:

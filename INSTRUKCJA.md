@@ -526,6 +526,15 @@ Pobrany plik jest sprawdzany sumą kontrolną opublikowaną razem z wydaniem.
 Jeżeli się nie zgadza, program go **nie uruchomi** i poprosi o ponowną
 próbę.
 
+### Kiedy program sprawdza
+
+Najwyżej raz na dobę, w tle, chwilę po uruchomieniu. Jeśli chcesz sprawdzić
+od razu — **Pomoc → Sprawdź aktualizacje**. To polecenie działa zawsze,
+niezależnie od tego, czy program sprawdzał już dzisiaj, i mówi wprost, gdy
+czegoś nie da się pobrać.
+
+Wynik ostatniego sprawdzenia widać w **Pomoc → O programie**.
+
 ### Wyłączenie sprawdzania
 
 W **Narzędzia → Ustawienia** możesz odznaczyć **Sprawdzaj aktualizacje
