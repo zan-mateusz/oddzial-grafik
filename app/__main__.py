@@ -78,15 +78,20 @@ def _open_database(args: argparse.Namespace):
     if args.db:
         return Database(Path(args.db)), None
     if args.demo:
+        from app.core.calendar_pl import quarter_months
         from app.demo import seed_demo
 
         path = config.data_dir() / "demo.db"
-        fresh = not path.exists()
         db = Database(path)
-        if fresh:
-            today = dt.date.today()
+        today = dt.date.today()
+        # Wypełniamy cały kwartał, żeby kolumna "Kwartał" miała co sumować.
+        # Powtórne uruchomienie nic nie psuje, a po zmianie miesiąca dokłada
+        # brakujące dane.
+        if not db.month_entries(today.year, today.month):
             db.set_setting("ward_name", "Oddział Wewnętrzny (dane przykładowe)")
-            seed_demo(db, today.year, today.month)
+            for year, month in quarter_months(today.year, today.month):
+                if (year, month) <= (today.year, today.month):
+                    seed_demo(db, year, month)
         return db, "demo"
     return Database(config.db_path()), None
 

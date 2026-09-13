@@ -157,3 +157,42 @@ def test_quarter_appears_in_the_export(db, tmp_path):
     model = _model(db, 2026, 8)
     expected = fmt_signed(model.quarter_balance[emp])
     assert any(expected in row for row in sheet.cells)
+
+
+def test_demo_mode_fills_the_whole_quarter(tmp_path, monkeypatch):
+    """Tryb demo ma pokazywać także kolumnę kwartalną, więc potrzebuje
+    więcej niż jednego miesiąca."""
+    import argparse
+    import datetime as dt2
+
+    from app import config
+    from app.__main__ import _open_database
+    from app.core.calendar_pl import quarter_months
+
+    monkeypatch.setattr(config, "data_dir", lambda: tmp_path)
+    db, mode = _open_database(argparse.Namespace(db=None, demo=True, month=None))
+    assert mode == "demo"
+
+    today = dt2.date.today()
+    expected = {
+        (y, m) for y, m in quarter_months(today.year, today.month)
+        if (y, m) <= (today.year, today.month)
+    }
+    assert set(db.months_with_data()) == expected
+    db.close()
+
+
+def test_demo_mode_is_safe_to_run_twice(tmp_path, monkeypatch):
+    import argparse
+
+    from app import config
+    from app.__main__ import _open_database
+
+    monkeypatch.setattr(config, "data_dir", lambda: tmp_path)
+    first, _ = _open_database(argparse.Namespace(db=None, demo=True, month=None))
+    people = len(first.employees())
+    first.close()
+
+    second, _ = _open_database(argparse.Namespace(db=None, demo=True, month=None))
+    assert len(second.employees()) == people    # bez dublowania zespołu
+    second.close()
