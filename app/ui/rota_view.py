@@ -4,7 +4,7 @@ from __future__ import annotations
 import datetime as dt
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QAction, QFont, QKeySequence
+from PySide6.QtGui import QAction, QBrush, QColor, QFont, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMenu,
@@ -84,6 +84,97 @@ class AddToRotaDialog(QDialog):
         return [i.data(Qt.ItemDataRole.UserRole) for i in self.list.selectedItems()]
 
 
+class RemoveFromRotaDialog(QDialog):
+    """Zdjęcie osób ze składu piętra — pojedynczo albo kilku naraz."""
+
+    def __init__(self, employees, shift_counts, floor_name: str, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Usuń z grafiku")
+        self.setMinimumWidth(450)
+        self._counts = shift_counts
+
+        self.list = QListWidget()
+        for emp in employees:
+            name = f"{emp['last_name']} {emp['first_name']}".strip()
+            shifts = shift_counts.get(emp["id"], 0)
+            if shifts:
+                name += f"  — {shifts} dyż."
+            item = QListWidgetItem(name)
+            item.setData(Qt.ItemDataRole.UserRole, emp["id"])
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Unchecked)
+            if shifts:
+                item.setForeground(QBrush(QColor("#B45309")))
+            self.list.addItem(item)
+        self.list.itemChanged.connect(lambda _: self._refresh_summary())
+
+        buttons_row = QHBoxLayout()
+        btn_all = QPushButton("Zaznacz wszystkich")
+        btn_all.clicked.connect(lambda: self._set_all(Qt.CheckState.Checked))
+        btn_none = QPushButton("Odznacz wszystkich")
+        btn_none.clicked.connect(lambda: self._set_all(Qt.CheckState.Unchecked))
+        buttons_row.addWidget(btn_all)
+        buttons_row.addWidget(btn_none)
+        buttons_row.addStretch(1)
+
+        self.lbl_summary = QLabel()
+        self.lbl_summary.setWordWrap(True)
+
+        hint = QLabel(
+            f"Zaznaczone osoby znikną z grafiku piętra {floor_name}. "
+            "Pozostaną w programie i w grafikach innych miesięcy."
+        )
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color:#555;")
+
+        self.buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        self.buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Usuń")
+        self.buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Anuluj")
+        self.buttons.accepted.connect(self.accept)
+        self.buttons.rejected.connect(self.reject)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.list)
+        layout.addLayout(buttons_row)
+        layout.addWidget(self.lbl_summary)
+        layout.addWidget(hint)
+        layout.addWidget(self.buttons)
+        self._refresh_summary()
+
+    def _set_all(self, state) -> None:
+        for row in range(self.list.count()):
+            self.list.item(row).setCheckState(state)
+
+    def _checked_items(self):
+        return [
+            self.list.item(row) for row in range(self.list.count())
+            if self.list.item(row).checkState() == Qt.CheckState.Checked
+        ]
+
+    def selected_ids(self) -> list[int]:
+        return [i.data(Qt.ItemDataRole.UserRole) for i in self._checked_items()]
+
+    def selected_shift_count(self) -> int:
+        return sum(self._counts.get(i, 0) for i in self.selected_ids())
+
+    def _refresh_summary(self) -> None:
+        chosen = self.selected_ids()
+        shifts = self.selected_shift_count()
+        self.buttons.button(QDialogButtonBox.StandardButton.Ok).setEnabled(
+            bool(chosen)
+        )
+        if not chosen:
+            self.lbl_summary.setText("")
+            return
+        text = f"Zaznaczono osób: <b>{len(chosen)}</b>."
+        if shifts:
+            text += (f" <span style='color:#B00020'>Razem z nimi zostanie "
+                     f"usuniętych <b>{shifts}</b> wpisanych dyżurów.</span>")
+        self.lbl_summary.setText(text)
+
+
 class RotaView(QWidget):
     """Grafik: nawigacja po miesiącach, siatka, szybkie wypełnianie."""
 
@@ -149,6 +240,10 @@ class RotaView(QWidget):
         hh.setFixedHeight(38)
         root.addWidget(self.table, 1)
 
+        # Pusty miesiąc to stan normalny — podpowiadamy, jak go wypełnić,
+        # zamiast pokazywać samą pustą siatkę.
+        self.empty_hint = self._build_empty_hint()
+
         self.footer = QLabel()
         self.footer.setTextFormat(Qt.TextFormat.RichText)
         self.footer.setWordWrap(True)
@@ -164,6 +259,69 @@ class RotaView(QWidget):
         self.addAction(self._delete_action)
 
         self._resize_columns()
+
+    def _build_empty_hint(self) -> QWidget:
+        panel = QWidget(self.table.viewport())
+        panel.setAutoFillBackground(True)
+        panel.setStyleSheet(
+            "QWidget#pustyGrafik { background: #FFFFFF; border: 1px solid #D3D8DF;"
+            " border-radius: 8px; }"
+        )
+        panel.setObjectName("pustyGrafik")
+
+        title = QLabel("Ten grafik jest jeszcze pusty")
+        font = QFont()
+        font.setPointSize(13)
+        font.setBold(True)
+        title.setFont(font)
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        subtitle = QLabel("Wybierz, od czego zacząć:")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        subtitle.setStyleSheet("color:#555;")
+
+        actions = QHBoxLayout()
+        actions.addStretch(1)
+        for text, slot in (
+            ("Skład z poprzedniego miesiąca", self._copy_previous_team),
+            ("Dodaj pracowników…", self._add_to_rota),
+            ("Wczytaj z pliku…", self._request_import),
+        ):
+            button = QPushButton(text)
+            button.clicked.connect(slot)
+            actions.addWidget(button)
+        actions.addStretch(1)
+
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(24, 18, 24, 18)
+        layout.addWidget(title)
+        layout.addWidget(subtitle)
+        layout.addSpacing(8)
+        layout.addLayout(actions)
+        panel.hide()
+        return panel
+
+    def _request_import(self) -> None:
+        """Import obsługuje okno główne — stąd tylko prośba."""
+        window = self.window()
+        if hasattr(window, "import_xlsx"):
+            window.import_xlsx()
+
+    def _update_empty_hint(self) -> None:
+        empty = self.model.rowCount() == 0 and self.floor_id is not None
+        self.empty_hint.setVisible(empty)
+        if empty:
+            self._centre_empty_hint()
+
+    def _centre_empty_hint(self) -> None:
+        viewport = self.table.viewport()
+        hint = self.empty_hint
+        hint.adjustSize()
+        size = hint.sizeHint()
+        hint.move(
+            max(0, (viewport.width() - size.width()) // 2),
+            max(0, (viewport.height() - size.height()) // 3),
+        )
 
     def _build_toolbar(self) -> QHBoxLayout:
         bar = QHBoxLayout()
@@ -199,6 +357,19 @@ class RotaView(QWidget):
         )
         self.btn_add.clicked.connect(self._add_to_rota)
 
+        self.btn_remove = QPushButton("Usuń z grafiku…")
+        self.btn_remove.setToolTip(
+            "Zdejmij osoby ze składu tego piętra — można zaznaczyć kilka naraz"
+        )
+        self.btn_remove.clicked.connect(self._remove_from_rota_dialog)
+
+        self.btn_copy_team = QPushButton("Skład z poprzedniego miesiąca")
+        self.btn_copy_team.setToolTip(
+            "Przenieś do tego grafiku te same osoby co miesiąc wcześniej, "
+            "bez ich dyżurów"
+        )
+        self.btn_copy_team.clicked.connect(self._copy_previous_team)
+
         self._reload_floors()
         self.cmb_floor.currentIndexChanged.connect(self._on_floor_changed)
 
@@ -211,6 +382,8 @@ class RotaView(QWidget):
         bar.addWidget(QLabel("Piętro:"))
         bar.addWidget(self.cmb_floor)
         bar.addWidget(self.btn_add)
+        bar.addWidget(self.btn_remove)
+        bar.addWidget(self.btn_copy_team)
         bar.addSpacing(16)
 
         self.lbl_norm = QLabel()
@@ -366,7 +539,8 @@ class RotaView(QWidget):
     def _update_editing_state(self) -> None:
         """W widoku łącznym grafik jest tylko do oglądania."""
         combined = self.floor_id is None
-        self.btn_add.setEnabled(not combined)
+        for button in (self.btn_add, self.btn_remove, self.btn_copy_team):
+            button.setEnabled(not combined)
         for i in range(self.palette_bar.count()):
             widget = self.palette_bar.itemAt(i).widget()
             if isinstance(widget, QToolButton):
@@ -402,6 +576,83 @@ class RotaView(QWidget):
         self.model.reload()
         self._resize_columns()
         self._refresh_footer()
+
+    def _previous_month(self) -> tuple[int, int]:
+        year, month = self.model.year, self.model.month
+        return (year - 1, 12) if month == 1 else (year, month - 1)
+
+    def _copy_previous_team(self) -> None:
+        """Przenosi skład piętra z poprzedniego miesiąca — bez dyżurów."""
+        if self.floor_id is None:
+            return
+        source = self._previous_month()
+        added = self.db.copy_roster(
+            source, (self.model.year, self.model.month), self.floor_id
+        )
+        month_name = PL_MONTHS_TITLE[source[1] - 1].lower()
+        if not added:
+            QMessageBox.information(
+                self, "Skład z poprzedniego miesiąca",
+                f"Nie ma kogo przenieść z {month_name} {source[0]} — grafik "
+                "tego piętra był wtedy pusty albo wszystkie te osoby są już "
+                "w składzie.",
+            )
+            return
+        self.model.reload()
+        self._resize_columns()
+        self._refresh_footer()
+        self.statusBar_message(
+            f"Przeniesiono {added} osób ze składu z {month_name} {source[0]}"
+        )
+
+    def statusBar_message(self, text: str) -> None:
+        window = self.window()
+        if hasattr(window, "statusBar"):
+            window.statusBar().showMessage(text, 5000)
+
+    def _remove_from_rota_dialog(self) -> None:
+        """Zdejmuje ze składu wybrane osoby — pojedynczo albo kilka naraz."""
+        if self.floor_id is None:
+            return
+        employees = list(self.model.employees)
+        if not employees:
+            QMessageBox.information(
+                self, "Usuń z grafiku", "Grafik tego piętra jest pusty."
+            )
+            return
+        counts = self.db.shift_counts_on_floor(
+            self.model.year, self.model.month, self.floor_id
+        )
+        dialog = RemoveFromRotaDialog(
+            employees, counts, self.db.floor_name(self.floor_id) or "", self
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        chosen = dialog.selected_ids()
+        if not chosen:
+            return
+
+        shifts = dialog.selected_shift_count()
+        if shifts:
+            answer = QMessageBox.warning(
+                self, "Usunięcie wraz z dyżurami",
+                f"Zaznaczone osoby mają na tym piętrze {shifts} wpisanych "
+                "dyżurów. Zostaną one usunięte razem z nimi.\n\n"
+                "Dyżury na innych piętrach pozostaną nietknięte. Kontynuować?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Cancel,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+
+        self.db.remove_from_rota(
+            self.model.year, self.model.month, self.floor_id, chosen,
+            drop_shifts=bool(shifts),
+        )
+        self.model.reload()
+        self._resize_columns()
+        self._refresh_footer()
+        self.dataEdited.emit()
 
     def _remove_from_rota(self, row: int) -> None:
         """Usuwa osobę ze składu piętra — tylko gdy nie ma tu dyżurów."""
@@ -463,8 +714,11 @@ class RotaView(QWidget):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._resize_columns()
+        if self.empty_hint.isVisible():
+            self._centre_empty_hint()
 
     def _refresh_footer(self) -> None:
+        self._update_empty_hint()
         norm = month_norm(self.model.year, self.model.month,
                           self.model.rules.daily_norm_minutes)
         floor_txt = ""

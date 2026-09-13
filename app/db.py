@@ -410,6 +410,62 @@ class Database:
         )
         self.conn.commit()
 
+    def copy_roster(self, source: tuple[int, int], target: tuple[int, int],
+                    floor_id: int | None) -> int:
+        """Przenosi skład piętra z jednego miesiąca do drugiego.
+
+        Pomija osoby, które w docelowym miesiącu już nie pracują, oraz te,
+        które i tak są już w składzie. Zwraca liczbę faktycznie dopisanych.
+        """
+        available = {e["id"] for e in self.employees_for_month(*target)}
+        already = {
+            e["id"] for e in self.employees_on_floor(*target, floor_id)
+        }
+        incoming = [
+            e["id"] for e in self.employees_on_floor(*source, floor_id)
+            if e["id"] in available and e["id"] not in already
+        ]
+        self.add_to_roster(*target, floor_id, incoming)
+        return len(incoming)
+
+    def shift_counts_on_floor(
+        self, year: int, month: int, floor_id: int | None
+    ) -> dict[int, int]:
+        """Ile dyżurów ma każdy pracownik na danym piętrze w danym miesiącu."""
+        first, last = self._month_bounds(year, month)
+        sql = ("SELECT employee_id, COUNT(*) AS n FROM entries "
+               "WHERE day BETWEEN ? AND ?")
+        params: list = [first, last]
+        if floor_id is not None:
+            sql += " AND floor_id=?"
+            params.append(floor_id)
+        sql += " GROUP BY employee_id"
+        return {
+            r["employee_id"]: r["n"]
+            for r in self.conn.execute(sql, params).fetchall()
+        }
+
+    def remove_from_rota(self, year: int, month: int, floor_id: int | None,
+                         employee_ids, drop_shifts: bool = False) -> int:
+        """Zdejmuje osoby ze składu piętra. Zwraca liczbę usuniętych dyżurów."""
+        first, last = self._month_bounds(year, month)
+        removed = 0
+        for emp_id in employee_ids:
+            if drop_shifts:
+                cur = self.conn.execute(
+                    "DELETE FROM entries WHERE employee_id=? "
+                    "AND day BETWEEN ? AND ? AND floor_id IS ?",
+                    (emp_id, first, last, floor_id),
+                )
+                removed += cur.rowcount or 0
+            self.conn.execute(
+                "DELETE FROM roster WHERE year=? AND month=? AND floor_id IS ? "
+                "AND employee_id=?",
+                (year, month, floor_id, emp_id),
+            )
+        self.conn.commit()
+        return removed
+
     def employees_on_floor(
         self, year: int, month: int, floor_id: int | None
     ) -> list[sqlite3.Row]:

@@ -162,21 +162,51 @@ czytelna. Piętra przełączasz listą <b>Piętro</b> nad tabelą.</p>
 <p>Nikt nie jest przypisany do piętra na stałe. Ta sama osoba może mieć dyżury
 na obu i pojawi się wtedy w obu grafikach.</p>
 
+<h3>Nowy miesiąc zaczyna się pusty</h3>
+<p>Każdy kolejny miesiąc otwiera się bez nikogo — grafik układasz od nowa.
+Na pustej tabeli program pokazuje trzy sposoby, żeby zacząć:</p>
+<table>
+<tr><th>Sposób</th><th>Kiedy się przydaje</th></tr>
+<tr><td><b>Skład z poprzedniego miesiąca</b></td><td>najczęściej: przenosi
+    te same osoby co miesiąc wcześniej, <b>bez ich dyżurów</b></td></tr>
+<tr><td><b>Dodaj pracowników…</b></td><td>gdy skład ma być inny — wybierasz
+    osoby z listy</td></tr>
+<tr><td><b>Wczytaj z pliku…</b></td><td>gdy grafik powstał już w Excelu
+    albo w LibreOffice</td></tr>
+</table>
+<p>Te same polecenia są zawsze dostępne na pasku nad tabelą, także wtedy,
+gdy grafik nie jest już pusty.</p>
+
+<h3>Przeniesienie składu z poprzedniego miesiąca</h3>
+<p>Przycisk <b>Skład z poprzedniego miesiąca</b> dopisuje do grafiku te same
+osoby, które były w nim miesiąc wcześniej — same nazwiska, bez dyżurów.
+Osoby, które w międzyczasie przestały pracować, są pomijane. Powtórne
+kliknięcie niczego nie dubluje.</p>
+<p>Jeżeli chcesz przenieść także <b>rozkład dyżurów</b>, użyj
+<b>Grafik → Kopiuj układ z poprzedniego miesiąca</b>. Pamiętaj wtedy, że dni
+tygodnia wypadają inaczej.</p>
+
 <h3>Dodanie osoby do grafiku piętra</h3>
-<p>Osoba pojawia się w grafiku piętra, gdy dostanie tam pierwszy dyżur.
-Jeśli chcesz mieć ją w tabeli wcześniej — na przykład układasz grafik
-od zera — kliknij <b>Dodaj do grafiku…</b> i wybierz osoby z listy. Można
-zaznaczyć kilka naraz, a pole u góry okna pomaga odnaleźć nazwisko.</p>
+<p>Osoba pojawia się w grafiku piętra sama, gdy dostanie tam pierwszy dyżur.
+Aby mieć ją w tabeli wcześniej, kliknij <b>Dodaj do grafiku…</b> i wybierz
+osoby z listy — można zaznaczyć kilka naraz, a pole u góry okna pomaga
+odnaleźć nazwisko.</p>
 <p>Dopisanie dotyczy <b>tego piętra i tego miesiąca</b>. Zostaje zapamiętane,
 więc osoba nie zniknie po zamknięciu programu, nawet jeśli nie ma jeszcze
 ani jednego dyżuru.</p>
 
-<h3>Usunięcie osoby z grafiku piętra</h3>
-<p>Kliknij nazwisko <b>prawym przyciskiem myszy</b> i wybierz usunięcie
-z grafiku tego piętra. Osoba z wpisanymi dyżurami nie da się usunąć —
-najpierw wyczyść jej wpisy, a zniknie sama.</p>
-<p>To nie kasuje pracownika z programu, tylko zdejmuje go z grafiku
-tego piętra.</p>
+<h3>Usunięcie osób z grafiku piętra</h3>
+<p>Przycisk <b>Usuń z grafiku…</b> otwiera listę z polami do zaznaczenia —
+możesz zdjąć ze składu jedną osobę albo kilka naraz. Przyciski
+<b>Zaznacz wszystkich</b> i <b>Odznacz wszystkich</b> pomagają przy dużym
+zespole. Pojedynczą osobę zdejmiesz też, klikając jej nazwisko
+<b>prawym przyciskiem myszy</b>.</p>
+<p>Osoby mające już wpisane dyżury są na liście wyróżnione, wraz z ich liczbą.
+Jeśli takie zaznaczysz, program ostrzeże, ile dyżurów zostanie przy okazji
+usuniętych, i poprosi o potwierdzenie. Kasowane są wyłącznie dyżury
+<b>na tym piętrze i w tym miesiącu</b>.</p>
+<p>Usunięcie ze składu <b>nie kasuje pracownika z programu</b> ani z grafików
+innych miesięcy.</p>
 
 <h3>Widok łączny</h3>
 <p>Ostatnia pozycja listy pięter — <b>Wszystkie piętra</b> — pokazuje cały

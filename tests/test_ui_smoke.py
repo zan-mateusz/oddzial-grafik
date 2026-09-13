@@ -439,3 +439,87 @@ def test_check_is_connected_before_the_thread_starts(qapp, db, monkeypatch):
     thread, checker = start_check(None, "ktos/grafik")
     assert not thread.isRunning(), "start_check nie może sam uruchamiać wątku"
     thread.deleteLater()
+
+
+def test_empty_month_shows_the_starting_hint(qapp, db):
+    """Pusty grafik ma podpowiadać, od czego zacząć."""
+    from app.ui.main_window import MainWindow
+
+    today = dt.date.today()
+    seed_demo(db, today.year, today.month)
+    window = MainWindow(db)
+    view = window.rota_view
+
+    assert not view.empty_hint.isVisibleTo(view)   # bieżący miesiąc ma skład
+    view._step_month(1)                         # następny jest pusty
+    assert view.model.rowCount() == 0
+    assert view.empty_hint.isVisibleTo(view)
+    window.close()
+
+
+def test_the_hint_disappears_once_the_team_is_there(qapp, db):
+    from app.ui.main_window import MainWindow
+
+    today = dt.date.today()
+    seed_demo(db, today.year, today.month)
+    window = MainWindow(db)
+    view = window.rota_view
+
+    view._step_month(1)
+    assert view.empty_hint.isVisibleTo(view)
+    view._copy_previous_team()
+    assert view.model.rowCount() > 0
+    assert not view.empty_hint.isVisibleTo(view)
+    window.close()
+
+
+def test_the_hint_stays_hidden_in_the_combined_view(qapp, db):
+    """Widok łączny nie ma czego podpowiadać — nie da się w nim nic wpisać."""
+    from app.ui.main_window import MainWindow
+
+    today = dt.date.today()
+    seed_demo(db, today.year, today.month)
+    window = MainWindow(db)
+    view = window.rota_view
+
+    view._step_month(1)
+    view.cmb_floor.setCurrentIndex(view.cmb_floor.count() - 1)
+    assert view.model.rowCount() == 0
+    assert not view.empty_hint.isVisibleTo(view)
+    window.close()
+
+
+def test_roster_buttons_are_disabled_in_the_combined_view(qapp, db):
+    from app.ui.main_window import MainWindow
+
+    today = dt.date.today()
+    seed_demo(db, today.year, today.month)
+    window = MainWindow(db)
+    view = window.rota_view
+
+    assert view.btn_add.isEnabled() and view.btn_remove.isEnabled()
+    view.cmb_floor.setCurrentIndex(view.cmb_floor.count() - 1)
+    assert not view.btn_add.isEnabled()
+    assert not view.btn_remove.isEnabled()
+    assert not view.btn_copy_team.isEnabled()
+    window.close()
+
+
+def test_remove_dialog_reports_the_shifts_at_stake(qapp, db):
+    from PySide6.QtCore import Qt
+
+    from app.ui.rota_view import RemoveFromRotaDialog
+
+    anna = db.add_employee("Pierwsza", "Anna")
+    maria = db.add_employee("Druga", "Maria")
+    employees = db.employees()
+    dialog = RemoveFromRotaDialog(employees, {anna: 4}, "I piętro")
+
+    assert dialog.selected_ids() == []
+    dialog._set_all(Qt.CheckState.Checked)
+    assert sorted(dialog.selected_ids()) == sorted([anna, maria])
+    assert dialog.selected_shift_count() == 4
+
+    dialog._set_all(Qt.CheckState.Unchecked)
+    assert dialog.selected_shift_count() == 0
+    dialog.close()
