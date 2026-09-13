@@ -77,7 +77,8 @@ def floor_column(floor) -> tuple[str, str, str]:
 COL_DAY = ("dzien", "Dzień", "Dyżury dzienne — liczba dni i łączny czas")
 COL_NIGHT = ("noc", "Noc", "Dyżury nocne, czyli sięgające pory nocnej — "
              "liczba dni i łączny czas")
-COL_HOLIDAY = ("swieta", "Święta", "Dyżury w święta ustawowo wolne od pracy")
+COL_HOLIDAY = ("swieta", "So/Nd/Św", "Dyżury w dni wolne — soboty, niedziele "
+               "i święta ustawowo wolne od pracy")
 COL_LEAVE = ("urlop", "Urlop", "Zużyty urlop — liczba dni i odpowiadający "
              "im czas pracy")
 COL_SICK = ("l4", "L4", "Zwolnienie lekarskie — liczba dni i odpowiadający "
@@ -390,7 +391,7 @@ class RotaModel(QAbstractTableModel):
             "kwartal": fmt_signed(self.quarter_balance.get(emp_id, 0)),
             "dzien": fmt_days_hours(month.day_shifts, month.day_minutes),
             "noc": fmt_days_hours(month.night_shifts, month.night_shift_minutes),
-            "swieta": fmt_days_hours(month.holidays_worked, month.holiday_minutes),
+            "swieta": fmt_days_hours(month.free_day_shifts, month.free_day_minutes),
             "urlop": fmt_days_hours(month.leave_days, month.leave_minutes),
             "l4": fmt_days_hours(month.sick_days, month.sick_minutes),
         }
@@ -452,11 +453,16 @@ class RotaModel(QAbstractTableModel):
                 f"Godziny przypadające na porę nocną: "
                 f"{fmt_minutes(month.night_minutes)}"
             )
-        elif key == "swieta" and month.sunday_minutes:
-            extra.append(
-                f"W niedziele: {fmt_minutes(month.sunday_minutes)} "
-                f"({month.sundays_worked} dyż.)"
-            )
+        elif key == "swieta":
+            for label, shifts, minutes in (
+                ("soboty", month.saturdays_worked, month.saturday_minutes),
+                ("niedziele", month.sundays_worked, month.sunday_minutes),
+                ("święta", month.holidays_worked, month.holiday_minutes),
+            ):
+                if shifts:
+                    extra.append(f"   {label}: {shifts} dyż. / {fmt_minutes(minutes)}")
+            if extra:
+                extra.insert(0, "W tym:")
         elif key == "urlop" and month.leave_ignored:
             extra.append(
                 f"Pominięto wpisów w dni wolne: {month.leave_ignored} — "

@@ -67,11 +67,21 @@ class EmployeeSummary:
     sundays_worked: int = 0
     holidays_worked: int = 0
     saturdays_worked: int = 0
+    saturday_minutes: int = 0
     unknown_entries: int = 0
     by_code: Counter[str] = field(default_factory=Counter)
     norm_minutes: int = 0
     leave_minutes: int = 0
     sick_minutes: int = 0
+
+    @property
+    def free_day_shifts(self) -> int:
+        """Dyżury w dni ustawowo wolne: soboty, niedziele i święta."""
+        return self.saturdays_worked + self.sundays_worked + self.holidays_worked
+
+    @property
+    def free_day_minutes(self) -> int:
+        return self.saturday_minutes + self.sunday_minutes + self.holiday_minutes
 
     @property
     def balance_minutes(self) -> int:
@@ -139,6 +149,9 @@ def summarize_month(
                     else:
                         s.day_shifts += 1
                         s.day_minutes += entry.minutes
+                    # Praca w sobotę, niedzielę i święto rodzi to samo
+                    # uprawnienie — dzień wolny w zamian albo dodatek — więc
+                    # liczymy je razem, zachowując rozbicie do podpowiedzi.
                     if is_holiday(day):
                         s.holidays_worked += 1
                         s.holiday_minutes += entry.minutes
@@ -147,6 +160,7 @@ def summarize_month(
                         s.sunday_minutes += entry.minutes
                     elif day.weekday() == 5:
                         s.saturdays_worked += 1
+                        s.saturday_minutes += entry.minutes
             elif cat is Category.LEAVE:
                 s.leave_entries += 1
                 # Urlopu udziela się tylko w dni, które są dniami pracy.

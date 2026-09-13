@@ -188,3 +188,56 @@ def test_corrupted_settings_fall_back_to_defaults(tmp_path):
     assert rules.daily_norm_minutes == Rules().daily_norm_minutes
     assert rules.night_start == Rules().night_start
     db.close()
+
+
+# --- dyżury w dni wolne -----------------------------------------------------
+
+def test_days_off_are_counted_together(TYPES_unused=None):
+    """Soboty, niedziele i święta dają to samo uprawnienie, więc idą razem."""
+    entries = {
+        (1, dt.date(2026, 8, 15)): resolve("D", TYPES),   # święto (sobota)
+        (1, dt.date(2026, 8, 16)): resolve("D", TYPES),   # niedziela
+        (1, dt.date(2026, 8, 22)): resolve("D", TYPES),   # sobota
+        (1, dt.date(2026, 8, 17)): resolve("D", TYPES),   # poniedziałek
+    }
+    s = summarize_month(2026, 8, [_emp()], entries)[1]
+    assert s.free_day_shifts == 3
+    assert s.free_day_minutes == 3 * 720
+    # Dzień powszedni nie wchodzi, choć dyżurów łącznie są cztery.
+    assert s.shift_days == 4
+
+
+def test_a_holiday_on_a_saturday_counts_once():
+    """15 sierpnia 2026 to sobota i zarazem święto."""
+    assert dt.date(2026, 8, 15).weekday() == 5
+    entries = {(1, dt.date(2026, 8, 15)): resolve("D", TYPES)}
+    s = summarize_month(2026, 8, [_emp()], entries)[1]
+    assert s.holidays_worked == 1
+    assert s.saturdays_worked == 0
+    assert s.free_day_shifts == 1
+    assert s.free_day_minutes == 720
+
+
+def test_the_breakdown_survives_for_the_tooltip():
+    entries = {
+        (1, dt.date(2026, 8, 16)): resolve("D", TYPES),   # niedziela
+        (1, dt.date(2026, 8, 22)): resolve("N", TYPES),   # sobota
+    }
+    s = summarize_month(2026, 8, [_emp()], entries)[1]
+    assert (s.sundays_worked, s.sunday_minutes) == (1, 720)
+    assert (s.saturdays_worked, s.saturday_minutes) == (1, 720)
+    assert s.holidays_worked == 0
+
+
+def test_partial_shifts_on_a_weekend_count_their_real_length():
+    entries = {(1, dt.date(2026, 8, 16)): resolve("7:30", TYPES)}
+    s = summarize_month(2026, 8, [_emp()], entries)[1]
+    assert s.free_day_shifts == 1
+    assert s.free_day_minutes == 450
+
+
+def test_leave_on_a_weekend_is_not_a_worked_day_off():
+    """Urlop wpisany w sobotę nie jest dyżurem."""
+    entries = {(1, dt.date(2026, 8, 22)): resolve("U", TYPES)}
+    s = summarize_month(2026, 8, [_emp()], entries)[1]
+    assert s.free_day_shifts == 0

@@ -64,7 +64,7 @@ def _headers(floors, has_sick: bool):
         ("kwartal", "Kwartał", NARROW),
         ("dzien", "Dzień", WIDE),
         ("noc", "Noc", WIDE),
-        ("swieta", "Święta", WIDE),
+        ("swieta", "So/Nd/Św", WIDE),
         ("urlop", "Urlop", WIDE),
     ]
     if has_sick:
@@ -251,7 +251,7 @@ def _summary_values(month, per_floor, quarter_minutes) -> dict[str, str]:
         "kwartal": fmt_signed(quarter_minutes),
         "dzien": fmt_days_hours(month.day_shifts, month.day_minutes),
         "noc": fmt_days_hours(month.night_shifts, month.night_shift_minutes),
-        "swieta": fmt_days_hours(month.holidays_worked, month.holiday_minutes),
+        "swieta": fmt_days_hours(month.free_day_shifts, month.free_day_minutes),
         "urlop": fmt_days_hours(month.leave_days, month.leave_minutes),
         "l4": fmt_days_hours(month.sick_days, month.sick_minutes),
     }

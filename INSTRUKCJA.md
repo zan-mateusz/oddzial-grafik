@@ -302,7 +302,8 @@ w grafiku. Większość podaje **liczbę dni i łączny czas** w postaci
     kwartału |
 | **Dzień** | dyżury dzienne |
 | **Noc** | dyżury nocne, czyli sięgające pory nocnej |
-| **Święta** | dyżury w święta ustawowo wolne od pracy |
+| **So/Nd/Św** | dyżury w dni wolne: soboty, niedziele
+    i święta ustawowo wolne od pracy |
 | **Urlop** | zużyty urlop i odpowiadający mu czas pracy |
 | **L4** | zwolnienie lekarskie — kolumna pojawia się tylko
     wtedy, gdy w danym miesiącu jest jakiś taki wpis |
@@ -353,6 +354,16 @@ ta liczba.
 
 Każde piętro ma własną kolumnę, więc od razu widać rozkład dyżurów danej
 osoby. Suma kolumn pięter to wszystkie jej dyżury w miesiącu.
+
+### Dyżury w dni wolne
+
+Kolumna **So/Nd/Św** zlicza razem dyżury sobotnie, niedzielne
+i świąteczne. Za pracę w każdym z tych dni przysługuje dzień wolny w zamian
+albo dodatek, więc wygodnie widzieć je w jednej liczbie.
+
+Święto wypadające w sobotę liczy się **raz**, jako święto. Podpowiedź
+nad kolumną pokazuje rozbicie: ile dyżurów przypadło osobno na soboty,
+niedziele i święta.
 
 ### Dzień i noc
 

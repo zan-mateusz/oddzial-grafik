@@ -266,7 +266,8 @@ w grafiku. Większość podaje <b>liczbę dni i łączny czas</b> w postaci
     kwartału</td></tr>
 <tr><td><b>Dzień</b></td><td>dyżury dzienne</td></tr>
 <tr><td><b>Noc</b></td><td>dyżury nocne, czyli sięgające pory nocnej</td></tr>
-<tr><td><b>Święta</b></td><td>dyżury w święta ustawowo wolne od pracy</td></tr>
+<tr><td><b>So/Nd/Św</b></td><td>dyżury w dni wolne: soboty, niedziele
+    i święta ustawowo wolne od pracy</td></tr>
 <tr><td><b>Urlop</b></td><td>zużyty urlop i odpowiadający mu czas pracy</td></tr>
 <tr><td><b>L4</b></td><td>zwolnienie lekarskie — kolumna pojawia się tylko
     wtedy, gdy w danym miesiącu jest jakiś taki wpis</td></tr>
@@ -312,6 +313,14 @@ ta liczba.</p>
 <h3>Dyżury na piętrach</h3>
 <p>Każde piętro ma własną kolumnę, więc od razu widać rozkład dyżurów danej
 osoby. Suma kolumn pięter to wszystkie jej dyżury w miesiącu.</p>
+
+<h3>Dyżury w dni wolne</h3>
+<p>Kolumna <b>So/Nd/Św</b> zlicza razem dyżury sobotnie, niedzielne
+i świąteczne. Za pracę w każdym z tych dni przysługuje dzień wolny w zamian
+albo dodatek, więc wygodnie widzieć je w jednej liczbie.</p>
+<p>Święto wypadające w sobotę liczy się <b>raz</b>, jako święto. Podpowiedź
+nad kolumną pokazuje rozbicie: ile dyżurów przypadło osobno na soboty,
+niedziele i święta.</p>
 
 <h3>Dzień i noc</h3>
 <p>Dyżur uznawany jest za nocny, jeżeli sięga pory nocnej ustawionej na

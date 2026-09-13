@@ -145,7 +145,8 @@ def test_manual_does_not_mention_retired_columns():
 def test_every_column_the_manual_names_really_exists():
     live = _live_column_labels()
     pattern = re.compile(
-        r"<b>(Dyż\.\s*\w+\.?|Godz\.\s*\w+\.?|Wymiar|Bilans|Dzień|Noc|Święta|L4|Dyżury)</b>"
+        r"<b>(Dyż\.\s*\w+\.?|Godz\.\s*\w+\.?|Wymiar|Bilans|Kwartał|Dzień|Noc"
+        r"|So/Nd/Św|L4|Dyżury)</b>"
     )
     named = set()
     for _, _, html in SECTIONS:
