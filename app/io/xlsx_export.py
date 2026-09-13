@@ -97,8 +97,10 @@ def export_month(
     has_sick = any(e.category is Category.SICK for e in all_entries.values())
 
     floors = db.floors() or [None]
-    employees = db.employees_for_month(year, month)
-    month_summaries = summarize_month(year, month, employees, all_entries, rules)
+    # Sumy liczymy dla całego zespołu, ale każda karta pokazuje tylko skład
+    # swojego piętra — dokładnie tak jak na ekranie.
+    everyone = db.employees_for_month(year, month)
+    month_summaries = summarize_month(year, month, everyone, all_entries, rules)
     quarter = _quarter_balances(db, year, month, types, rules, month_summaries)
 
     per_floor = {}
@@ -109,7 +111,7 @@ def export_month(
             if entry_floors.get(key) == floor_id
         }
         per_floor[floor_id] = summarize_month(
-            year, month, employees, scoped, rules
+            year, month, everyone, scoped, rules
         )
 
     wb = Workbook()
@@ -119,6 +121,7 @@ def export_month(
         floor_id = floor["id"] if floor is not None else None
         floor_label = floor["name"] if floor is not None else ""
         floor_entries = _resolved(db.month_entries(year, month, floor_id), types)
+        employees = db.employees_on_floor(year, month, floor_id)
 
         ws = wb.create_sheet(_sheet_title(floor_label, year, month))
         _write_title(ws, year, month, norm, ward_name, len(days), floor_label)

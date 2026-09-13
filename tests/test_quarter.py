@@ -111,9 +111,14 @@ def test_unplanned_future_months_are_left_out(db):
 
 
 def test_the_month_being_viewed_always_counts(db):
-    """Nawet pusty — tak samo jak w kolumnie miesięcznej."""
+    """Nawet pusty — tak samo jak w kolumnie miesięcznej.
+
+    Osoba bez dyżurów nie trafia do składu sama, więc dopisujemy ją ręcznie;
+    inaczej nie byłoby dla niej wiersza w grafiku.
+    """
     emp = db.add_employee("Testowa", "Osoba")
     _fill_month(db, emp, 2026, 7, days=20)
+    db.add_to_roster(2026, 8, db.floors()[0]["id"], [emp])
 
     model = _model(db, 2026, 8)                  # sierpień jeszcze pusty
     assert (2026, 8) in model.quarter_months

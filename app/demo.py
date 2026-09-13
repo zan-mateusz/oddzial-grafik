@@ -52,11 +52,24 @@ def seed_demo(db, year: int, month: int, seed: int = 7) -> None:
 
     db.set_entries_bulk(items)
 
-    # Dyżury rozłożone na oba piętra — zespół rotuje między nimi.
+    # Zespół pracuje głównie na swoim piętrze, ale zdarzają się dyżury na
+    # drugim — tak wygląda rotacja na oddziale.
     floors = db.floors()
     if len(floors) > 1:
-        spread = []
-        for i, (emp_id, day, code) in enumerate(items):
-            floor_id = floors[i % len(floors)]["id"]
-            spread.append((emp_id, day, code, floor_id))
-        db.set_entries_bulk(spread)
+        usual = {
+            emp["id"]: floors[i % len(floors)]["id"]
+            for i, emp in enumerate(employees)
+        }
+        # Tylko dwie osoby zaglądają na drugie piętro, i to rzadko — reszta
+        # trzyma się swojego, tak jak w prawdziwym grafiku.
+        rotating = {emp["id"] for emp in employees[:2]}
+        seen: dict[int, int] = {}
+        placed = []
+        for emp_id, day, code in items:
+            floor_id = usual[emp_id]
+            seen[emp_id] = seen.get(emp_id, 0) + 1
+            if emp_id in rotating and seen[emp_id] % 5 == 0:
+                other = [f["id"] for f in floors if f["id"] != floor_id]
+                floor_id = other[0]
+            placed.append((emp_id, day, code, floor_id))
+        db.set_entries_bulk(placed)

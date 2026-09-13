@@ -169,27 +169,53 @@ lepszej widoczności — dyżury w te dni planuje się normalnie.
 
 ### Wiersze
 
-Wszyscy pracownicy widoczni są na obu piętrach — wiersz bez żadnego wpisu
-znaczy po prostu, że ta osoba nie ma w tym miesiącu dyżuru na tym piętrze.
+W grafiku piętra widać tylko osoby, które na nim pracują. Wiersz bez wpisów
+oznacza kogoś dopisanego ręcznie, kto nie ma jeszcze przydzielonego dyżuru.
 
 ## Dwa piętra
 
-Każde piętro ma **własny grafik**, ale **zespół jest wspólny**.
-Wszyscy pracownicy widoczni są na obu piętrach, bo na oddziale ludzie rotują
-między nimi swobodnie. Piętra przełączasz listą **Piętro** nad tabelą.
+Każde piętro ma **własny grafik**. Pokazuje tylko te osoby, które
+faktycznie na nim pracują — dzięki temu przy dużym zespole tabela pozostaje
+czytelna. Piętra przełączasz listą **Piętro** nad tabelą.
 
-Nie trzeba nikogo nigdzie przypisywać ani dopisywać. Wpisujesz dyżur w tym
-grafiku, w którym osoba danego dnia pracuje — i tyle.
+Nikt nie jest przypisany do piętra na stałe. Ta sama osoba może mieć dyżury
+na obu i pojawi się wtedy w obu grafikach.
+
+### Dodanie osoby do grafiku piętra
+
+Osoba pojawia się w grafiku piętra, gdy dostanie tam pierwszy dyżur.
+Jeśli chcesz mieć ją w tabeli wcześniej — na przykład układasz grafik
+od zera — kliknij **Dodaj do grafiku…** i wybierz osoby z listy. Można
+zaznaczyć kilka naraz, a pole u góry okna pomaga odnaleźć nazwisko.
+
+Dopisanie dotyczy **tego piętra i tego miesiąca**. Zostaje zapamiętane,
+więc osoba nie zniknie po zamknięciu programu, nawet jeśli nie ma jeszcze
+ani jednego dyżuru.
+
+### Usunięcie osoby z grafiku piętra
+
+Kliknij nazwisko **prawym przyciskiem myszy** i wybierz usunięcie
+z grafiku tego piętra. Osoba z wpisanymi dyżurami nie da się usunąć —
+najpierw wyczyść jej wpisy, a zniknie sama.
+
+To nie kasuje pracownika z programu, tylko zdejmuje go z grafiku
+tego piętra.
+
+### Widok łączny
+
+Ostatnia pozycja listy pięter — **Wszystkie piętra** — pokazuje cały
+zespół i wszystkie dyżury naraz, niezależnie od piętra. Służy do przejrzenia
+całości; **nie da się w nim wpisywać dyżurów**, bo nie byłoby wiadomo,
+którego piętra miałyby dotyczyć. Przyciski kodów są wtedy wyszarzone.
+
+Najedź myszką na dyżur, aby zobaczyć, na którym piętrze się odbywa.
 
 ### Zabezpieczenie przed podwójnym dyżurem
 
-Jeżeli ktoś ma danego dnia dyżur na **drugim** piętrze, jego komórka
-pokazuje ten dyżur **szarą kursywą**. Dzięki temu widać, że ta osoba jest
-już zajęta, i nie da się jej przez pomyłkę wpisać drugiego dyżuru tego samego
-dnia. Najedź myszką, aby zobaczyć, na którym piętrze pracuje.
-
-Wpisanie czegoś w taką szarą komórkę **przenosi** dyżur na oglądane
-piętro — jedna osoba ma jeden dyżur dziennie.
+W grafiku piętra dyżur odbywany tego dnia na **drugim** piętrze widać
+**szarą kursywą**. Dzięki temu nie da się nikomu przez pomyłkę wpisać
+dwóch dyżurów jednego dnia. Wpisanie czegoś w taką szarą komórkę
+**przenosi** dyżur na oglądane piętro.
 
 ### Czyszczenie
 
@@ -605,8 +631,16 @@ zmienisz na zakładce **Zasady**.
 
 ### Ktoś nie pojawia się w grafiku
 
-Sprawdź, czy jest przypisany do właściwego piętra, czy ma zaznaczone
-**Pracuje obecnie** i czy daty zatrudnienia obejmują ten miesiąc.
+Grafik piętra pokazuje tylko osoby mające na nim dyżur. Jeśli ktoś ma się
+pojawić wcześniej, użyj przycisku **Dodaj do grafiku…**. Sprawdź też, czy
+osoba ma zaznaczone **Pracuje obecnie** i czy daty zatrudnienia obejmują
+ten miesiąc.
+
+### Nie mogę nic wpisać w tabeli
+
+Prawdopodobnie masz włączony **widok łączny** (pozycja
+**Wszystkie piętra**). Służy tylko do oglądania — przełącz się na konkretne
+piętro, żeby wpisywać dyżury.
 
 ### Nie widzę listy pięter
 

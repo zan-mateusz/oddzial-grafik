@@ -8,7 +8,7 @@ from pathlib import Path
 
 from app.core.shifts import DEFAULT_SHIFT_TYPES, Category, ShiftType
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -61,6 +61,17 @@ CREATE TABLE IF NOT EXISTS entries (
 );
 
 CREATE INDEX IF NOT EXISTS idx_entries_day ON entries(day);
+
+-- Skład grafiku: kto ma się pojawić na danym piętrze w danym miesiącu, nawet
+-- jeśli nie ma jeszcze wpisanego ani jednego dyżuru. Bez tego osoba dodana do
+-- grafiku znikałaby przy każdym odświeżeniu, dopóki nie dostanie dyżuru.
+CREATE TABLE IF NOT EXISTS roster (
+    year        INTEGER NOT NULL,
+    month       INTEGER NOT NULL,
+    floor_id    INTEGER REFERENCES floors(id),
+    employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    PRIMARY KEY (year, month, floor_id, employee_id)
+);
 
 -- Miesiące zatwierdzone / opisane przez użytkownika.
 CREATE TABLE IF NOT EXISTS months (
@@ -190,6 +201,17 @@ class Database:
         if version == SCHEMA_VERSION:
             return
         self.last_upgrade_backup = self.backup_before_upgrade(version)
+        if version < 3:
+            self.conn.executescript("""
+                CREATE TABLE IF NOT EXISTS roster (
+                    year        INTEGER NOT NULL,
+                    month       INTEGER NOT NULL,
+                    floor_id    INTEGER REFERENCES floors(id),
+                    employee_id INTEGER NOT NULL REFERENCES employees(id)
+                                ON DELETE CASCADE,
+                    PRIMARY KEY (year, month, floor_id, employee_id)
+                );
+            """)
         if version < 2:
             self._add_column("employees", "floor_id", "INTEGER REFERENCES floors(id)")
             self._add_column("entries", "floor_id", "INTEGER REFERENCES floors(id)")
@@ -359,6 +381,68 @@ class Database:
             sql += " WHERE " + " AND ".join(clauses)
         sql += " ORDER BY sort_order, last_name, first_name"
         return list(self.conn.execute(sql, params).fetchall())
+
+    # --- skład grafiku ------------------------------------------------------
+
+    def roster_ids(self, year: int, month: int, floor_id: int | None) -> set[int]:
+        """Osoby dopisane ręcznie do grafiku danego piętra."""
+        rows = self.conn.execute(
+            "SELECT employee_id FROM roster WHERE year=? AND month=? AND floor_id IS ?",
+            (year, month, floor_id),
+        ).fetchall()
+        return {r["employee_id"] for r in rows}
+
+    def add_to_roster(self, year: int, month: int, floor_id: int | None,
+                      employee_ids) -> None:
+        self.conn.executemany(
+            "INSERT OR IGNORE INTO roster(year, month, floor_id, employee_id) "
+            "VALUES(?,?,?,?)",
+            [(year, month, floor_id, emp_id) for emp_id in employee_ids],
+        )
+        self.conn.commit()
+
+    def remove_from_roster(self, year: int, month: int, floor_id: int | None,
+                           employee_id: int) -> None:
+        self.conn.execute(
+            "DELETE FROM roster WHERE year=? AND month=? AND floor_id IS ? "
+            "AND employee_id=?",
+            (year, month, floor_id, employee_id),
+        )
+        self.conn.commit()
+
+    def employees_on_floor(
+        self, year: int, month: int, floor_id: int | None
+    ) -> list[sqlite3.Row]:
+        """Skład grafiku piętra: osoby z dyżurem na nim oraz dopisane ręcznie.
+
+        Bez wskazania piętra (widok łączny) — wszyscy, którzy mają w tym
+        miesiącu jakikolwiek dyżur albo zostali gdziekolwiek dopisani.
+        """
+        first, last = self._month_bounds(year, month)
+        if floor_id is None:
+            with_shifts = (
+                "SELECT employee_id FROM entries WHERE day BETWEEN ? AND ?"
+            )
+            shift_params = [first, last]
+            rostered = "SELECT employee_id FROM roster WHERE year=? AND month=?"
+            roster_params = [year, month]
+        else:
+            with_shifts = (
+                "SELECT employee_id FROM entries "
+                "WHERE day BETWEEN ? AND ? AND floor_id=?"
+            )
+            shift_params = [first, last, floor_id]
+            rostered = (
+                "SELECT employee_id FROM roster "
+                "WHERE year=? AND month=? AND floor_id IS ?"
+            )
+            roster_params = [year, month, floor_id]
+
+        return list(self.conn.execute(
+            f"SELECT * FROM employees WHERE id IN ({with_shifts}) "
+            f"OR id IN ({rostered}) ORDER BY sort_order, last_name, first_name",
+            (*shift_params, *roster_params),
+        ).fetchall())
 
     def employees_for_month(self, year: int, month: int) -> list[sqlite3.Row]:
         """Pracownicy widoczni w grafiku danego miesiąca.

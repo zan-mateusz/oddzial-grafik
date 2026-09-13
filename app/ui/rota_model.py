@@ -134,11 +134,20 @@ class RotaModel(QAbstractTableModel):
         self._types = self.db.shift_types_by_code()
 
         floors = self.db.floors()
-        self.employees = self.db.employees_for_month(self.year, self.month)
+        # Skład zależy od oglądanego piętra: pokazujemy osoby, które mają na
+        # nim dyżur albo zostały do niego dopisane. Widok łączny zbiera
+        # wszystkich z całego miesiąca.
+        self.employees = self.db.employees_on_floor(
+            self.year, self.month, self.floor_id
+        )
         # Komórki pokazują dyżury tego piętra; sumy liczą cały miesiąc.
-        self._raw = self.db.month_entries(self.year, self.month, self.floor_id)
         all_raw = self.db.month_entries(self.year, self.month)
+        self._raw = (
+            all_raw if self.floor_id is None
+            else self.db.month_entries(self.year, self.month, self.floor_id)
+        )
         entry_floors = self.db.month_entry_floors(self.year, self.month)
+        self._entry_floors = entry_floors
 
         self._entries = {}
         for key, raw in self._raw.items():
@@ -239,6 +248,11 @@ class RotaModel(QAbstractTableModel):
     def columnCount(self, parent=QModelIndex()) -> int:
         return 0 if parent.isValid() else len(self.days) + len(self.summary_columns)
 
+    @property
+    def combined(self) -> bool:
+        """Widok łączny — wszystkie piętra naraz, tylko do oglądania."""
+        return self.floor_id is None
+
     def is_summary_column(self, col: int) -> bool:
         return col >= len(self.days)
 
@@ -319,6 +333,10 @@ class RotaModel(QAbstractTableModel):
         hol = holiday_name(day)
         if hol:
             parts.append(f"Święto: {hol}")
+        if entry is not None and self.combined:
+            where = self.db.floor_name(self._entry_floors.get((emp["id"], day)))
+            if where:
+                parts.append(f"Piętro: {where}")
         if entry is not None:
             st = self._types.get(entry.label.upper())
             if st is not None and st.name:
@@ -427,7 +445,7 @@ class RotaModel(QAbstractTableModel):
     def setData(self, index: QModelIndex, value, role=Qt.ItemDataRole.EditRole) -> bool:
         if role != Qt.ItemDataRole.EditRole or not index.isValid():
             return False
-        if self.is_summary_column(index.column()):
+        if self.is_summary_column(index.column()) or self.combined:
             return False
         emp = self.employee_at(index.row())
         day = self.days[index.column()]
@@ -447,6 +465,8 @@ class RotaModel(QAbstractTableModel):
 
     def set_range(self, cells: list[tuple[int, int]], raw: str) -> None:
         """Wypełnia wiele komórek naraz (zaznaczenie + wybór zmiany)."""
+        if self.combined:
+            return
         items = []
         for row, col in cells:
             if self.is_summary_column(col):
@@ -463,7 +483,10 @@ class RotaModel(QAbstractTableModel):
 
     def flags(self, index: QModelIndex):
         base = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
-        if index.isValid() and not self.is_summary_column(index.column()):
+        # W widoku łącznym nie wiadomo, na które piętro zapisać dyżur, więc
+        # edycja jest wyłączona — od wpisywania są grafiki poszczególnych pięter.
+        if (index.isValid() and not self.is_summary_column(index.column())
+                and not self.combined):
             return base | Qt.ItemFlag.ItemIsEditable
         return base
 

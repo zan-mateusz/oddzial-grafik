@@ -6,8 +6,10 @@ import datetime as dt
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction, QFont, QKeySequence
 from PySide6.QtWidgets import (
-    QAbstractItemView, QComboBox, QHBoxLayout, QHeaderView, QLabel, QMenu,
-    QPushButton, QSpinBox, QTableView, QToolButton, QVBoxLayout, QWidget,
+    QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout,
+    QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMenu,
+    QMessageBox, QPushButton, QSpinBox, QTableView, QToolButton, QVBoxLayout,
+    QWidget,
 )
 
 from app.core.calendar_pl import PL_MONTHS_TITLE, day_kind, month_norm
@@ -22,6 +24,64 @@ SUMMARY_COL_WIDTH = 82
 NARROW_SUMMARY = {"wymiar", "bilans", "kwartal"}
 NARROW_COL_WIDTH = 64
 NAME_COL_WIDTH = 186
+
+
+COMBINED_LABEL = "Wszystkie piętra"
+
+
+class AddToRotaDialog(QDialog):
+    """Wybór osób, które mają się pojawić w grafiku tego piętra."""
+
+    def __init__(self, candidates, floor_name: str, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Dodaj do grafiku")
+        self.setMinimumWidth(430)
+
+        self.search = QLineEdit()
+        self.search.setPlaceholderText("Szukaj nazwiska…")
+        self.search.setClearButtonEnabled(True)
+        self.search.textChanged.connect(self._filter)
+
+        self.list = QListWidget()
+        self.list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        for emp in candidates:
+            name = f"{emp['last_name']} {emp['first_name']}".strip()
+            if emp["position"]:
+                name += f" — {emp['position']}"
+            item = QListWidgetItem(name)
+            item.setData(Qt.ItemDataRole.UserRole, emp["id"])
+            self.list.addItem(item)
+        self.list.itemDoubleClicked.connect(lambda _: self.accept())
+
+        hint = QLabel(
+            f"Wybrane osoby pojawią się w grafiku piętra {floor_name} — także "
+            "zanim dostaną pierwszy dyżur. Można zaznaczyć kilka naraz."
+        )
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color:#555;")
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Dodaj")
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Anuluj")
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.search)
+        layout.addWidget(self.list)
+        layout.addWidget(hint)
+        layout.addWidget(buttons)
+
+    def _filter(self, text: str) -> None:
+        needle = text.strip().lower()
+        for row in range(self.list.count()):
+            item = self.list.item(row)
+            item.setHidden(bool(needle) and needle not in item.text().lower())
+
+    def selected_ids(self) -> list[int]:
+        return [i.data(Qt.ItemDataRole.UserRole) for i in self.list.selectedItems()]
 
 
 class RotaView(QWidget):
@@ -51,13 +111,16 @@ class RotaView(QWidget):
         root.setContentsMargins(10, 8, 10, 8)
         root.setSpacing(6)
 
-        root.addLayout(self._build_toolbar())
-
+        # Pasek kodów zmian musi istnieć przed budową paska narzędzi — ten
+        # ustawia stan edycji, który obejmuje także przyciski kodów.
         self.palette_bar = QHBoxLayout()
         self.palette_bar.setSpacing(4)
+
+        root.addLayout(self._build_toolbar())
         pal_wrap = QWidget()
         pal_wrap.setLayout(self.palette_bar)
         root.addWidget(pal_wrap)
+
 
         self.table = QTableView()
         self.table.setModel(self.model)
@@ -79,6 +142,8 @@ class RotaView(QWidget):
         vh.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         vh.setFixedWidth(NAME_COL_WIDTH)
         vh.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        vh.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        vh.customContextMenuRequested.connect(self._show_employee_menu)
         hh = self.table.horizontalHeader()
         hh.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         hh.setFixedHeight(38)
@@ -128,6 +193,12 @@ class RotaView(QWidget):
         self.cmb_floor = QComboBox()
         self.cmb_floor.setToolTip("Piętro, którego grafik jest wyświetlany")
 
+        self.btn_add = QPushButton("Dodaj do grafiku…")
+        self.btn_add.setToolTip(
+            "Dopisz osobę do grafiku tego piętra, zanim dostanie pierwszy dyżur"
+        )
+        self.btn_add.clicked.connect(self._add_to_rota)
+
         self._reload_floors()
         self.cmb_floor.currentIndexChanged.connect(self._on_floor_changed)
 
@@ -139,6 +210,7 @@ class RotaView(QWidget):
         bar.addSpacing(16)
         bar.addWidget(QLabel("Piętro:"))
         bar.addWidget(self.cmb_floor)
+        bar.addWidget(self.btn_add)
         bar.addSpacing(16)
 
         self.lbl_norm = QLabel()
@@ -186,6 +258,7 @@ class RotaView(QWidget):
         self.palette_bar.addWidget(btn_clear)
         self.palette_bar.addStretch(1)
         self.delegate.refresh_codes()
+        self._update_editing_state()
 
     def _selected_cells(self) -> list[tuple[int, int]]:
         return [
@@ -195,9 +268,25 @@ class RotaView(QWidget):
         ]
 
     def _fill_selection(self, code: str) -> None:
+        if self.floor_id is None:
+            return
         cells = self._selected_cells()
         if cells:
             self.model.set_range(cells, code)
+
+    def _show_employee_menu(self, pos) -> None:
+        """Menu przy nazwisku — usunięcie osoby ze składu tego piętra."""
+        if self.floor_id is None:
+            return
+        row = self.table.verticalHeader().logicalIndexAt(pos)
+        emp = self.model.employee_at(row)
+        if emp is None:
+            return
+        name = f"{emp['last_name']} {emp['first_name']}".strip()
+        menu = QMenu(self)
+        action = menu.addAction(f"Usuń z grafiku tego piętra: {name}")
+        action.triggered.connect(lambda: self._remove_from_rota(row))
+        menu.exec(self.table.verticalHeader().mapToGlobal(pos))
 
     def _show_context_menu(self, pos) -> None:
         index = self.table.indexAt(pos)
@@ -253,19 +342,87 @@ class RotaView(QWidget):
         floors = self.db.floors()
         for floor in floors:
             self.cmb_floor.addItem(floor["name"], floor["id"])
-        if self.floor_id is not None:
-            index = self.cmb_floor.findData(self.floor_id)
-            if index >= 0:
-                self.cmb_floor.setCurrentIndex(index)
+        if len(floors) > 1:
+            # Widok łączny pokazuje wszystkie piętra naraz, bez możliwości edycji.
+            self.cmb_floor.addItem(COMBINED_LABEL, None)
+        index = self.cmb_floor.findData(self.floor_id)
+        if index >= 0:
+            self.cmb_floor.setCurrentIndex(index)
         self.cmb_floor.blockSignals(False)
-        self.cmb_floor.setVisible(len(floors) > 1)
+        multi = len(floors) > 1
+        self.cmb_floor.setVisible(multi)
+        self._update_editing_state()
 
     def _on_floor_changed(self) -> None:
         floor_id = self.cmb_floor.currentData()
-        if floor_id == self.floor_id:
+        if floor_id == self.floor_id and self.cmb_floor.currentIndex() >= 0:
             return
         self.floor_id = floor_id
         self.model.set_floor(floor_id)
+        self._update_editing_state()
+        self._resize_columns()
+        self._refresh_footer()
+
+    def _update_editing_state(self) -> None:
+        """W widoku łącznym grafik jest tylko do oglądania."""
+        combined = self.floor_id is None
+        self.btn_add.setEnabled(not combined)
+        for i in range(self.palette_bar.count()):
+            widget = self.palette_bar.itemAt(i).widget()
+            if isinstance(widget, QToolButton):
+                widget.setEnabled(not combined)
+
+    def _add_to_rota(self) -> None:
+        """Dopisuje osoby do składu tego piętra na ten miesiąc."""
+        if self.floor_id is None:
+            return
+        shown = {e["id"] for e in self.model.employees}
+        candidates = [
+            e for e in self.db.employees_for_month(self.model.year, self.model.month)
+            if e["id"] not in shown
+        ]
+        if not candidates:
+            QMessageBox.information(
+                self, "Dodaj do grafiku",
+                "Wszyscy pracownicy są już w grafiku tego piętra.\n\n"
+                "Nowe osoby dodasz na zakładce Pracownicy.",
+            )
+            return
+        dialog = AddToRotaDialog(
+            candidates, self.db.floor_name(self.floor_id) or "", self
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        chosen = dialog.selected_ids()
+        if not chosen:
+            return
+        self.db.add_to_roster(
+            self.model.year, self.model.month, self.floor_id, chosen
+        )
+        self.model.reload()
+        self._resize_columns()
+        self._refresh_footer()
+
+    def _remove_from_rota(self, row: int) -> None:
+        """Usuwa osobę ze składu piętra — tylko gdy nie ma tu dyżurów."""
+        emp = self.model.employee_at(row)
+        if emp is None or self.floor_id is None:
+            return
+        name = f"{emp['last_name']} {emp['first_name']}".strip()
+        has_shifts = any(
+            key[0] == emp["id"] for key in self.model._entries
+        )
+        if has_shifts:
+            QMessageBox.information(
+                self, "Usunięcie z grafiku",
+                f"{name} ma dyżury na tym piętrze. Usuń najpierw jej wpisy, "
+                "a zniknie z grafiku sama.",
+            )
+            return
+        self.db.remove_from_roster(
+            self.model.year, self.model.month, self.floor_id, emp["id"]
+        )
+        self.model.reload()
         self._resize_columns()
         self._refresh_footer()
 
@@ -312,7 +469,8 @@ class RotaView(QWidget):
                           self.model.rules.daily_norm_minutes)
         floor_txt = ""
         if self.cmb_floor.isVisible():
-            floor_txt = f"{self.db.floor_name(self.floor_id)}   •   "
+            where = self.db.floor_name(self.floor_id) or COMBINED_LABEL
+            floor_txt = f"{where}   •   "
         self.lbl_norm.setText(
             f"{floor_txt}{PL_MONTHS_TITLE[self.model.month - 1]} {self.model.year}   •   "
             f"wymiar: {fmt_minutes(norm.minutes)} h  ({norm.working_days} dni roboczych)"
@@ -336,8 +494,13 @@ class RotaView(QWidget):
             f" &nbsp; <span style='color:#B00020;font-weight:600'>"
             f"⚠ nierozpoznane wpisy: {unknown}</span>" if unknown else ""
         )
+        mode_txt = ""
+        if self.floor_id is None:
+            mode_txt = (" &nbsp;•&nbsp; <span style='color:#8C4A00'>widok łączny "
+                        "— dyżury wpisujesz w grafiku konkretnego piętra</span>")
         self.footer.setText(
-            f"<span style='color:#444'>Pracowników w grafiku: <b>{staff}</b> &nbsp;•&nbsp; "
+            f"<span style='color:#444'>Pracowników w grafiku: <b>{staff}</b>"
+            f"{mode_txt} &nbsp;•&nbsp; "
             f"łącznie godzin: <b>{fmt_minutes(total)}</b> &nbsp;•&nbsp; "
             f"święta: {hol_txt}</span>{coverage_txt}{warn}"
         )

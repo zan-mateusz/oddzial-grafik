@@ -46,12 +46,13 @@ def test_main_window_builds_with_data(qapp, db):
     seed_demo(db, today.year, today.month)
     window = MainWindow(db)
     assert window.rota_view.model.rowCount() > 0
-    assert window.rota_view.cmb_floor.count() == len(db.floors())
+    # Lista pięter ma dodatkowo pozycję z widokiem łącznym.
+    assert window.rota_view.cmb_floor.count() == len(db.floors()) + 1
     window.close()
 
 
-def test_the_roster_is_the_same_on_every_floor(qapp, db):
-    """Zespół rotuje, więc oba piętra pokazują te same osoby."""
+def test_each_floor_lists_only_its_own_team(qapp, db):
+    """Grafik piętra pokazuje tylko osoby, które na nim pracują."""
     from app.ui.main_window import MainWindow
 
     today = dt.date.today()
@@ -62,8 +63,38 @@ def test_the_roster_is_the_same_on_every_floor(qapp, db):
     first = {e["id"] for e in view.model.employees}
     view.cmb_floor.setCurrentIndex(1)
     second = {e["id"] for e in view.model.employees}
-    assert first == second
     assert view.floor_id == db.floors()[1]["id"]
+    assert first != second, "piętra nie powinny mieć identycznego składu"
+    assert first and second
+
+    # Widok łączny zbiera obie listy.
+    view.cmb_floor.setCurrentIndex(view.cmb_floor.count() - 1)
+    assert view.model.combined
+    assert {e["id"] for e in view.model.employees} == first | second
+    window.close()
+
+
+def test_combined_view_disables_the_shift_buttons(qapp, db):
+    from PySide6.QtWidgets import QToolButton
+
+    from app.ui.main_window import MainWindow
+
+    today = dt.date.today()
+    seed_demo(db, today.year, today.month)
+    window = MainWindow(db)
+    view = window.rota_view
+
+    def palette_enabled():
+        return [
+            view.palette_bar.itemAt(i).widget().isEnabled()
+            for i in range(view.palette_bar.count())
+            if isinstance(view.palette_bar.itemAt(i).widget(), QToolButton)
+        ]
+
+    assert all(palette_enabled())
+    view.cmb_floor.setCurrentIndex(view.cmb_floor.count() - 1)
+    assert not any(palette_enabled())
+    assert not view.btn_add.isEnabled()
     window.close()
 
 

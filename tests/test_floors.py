@@ -165,8 +165,10 @@ def test_migration_from_single_floor_database(tmp_path):
     con.commit()
     con.close()
 
+    from app.db import SCHEMA_VERSION
+
     db = Database(path)
-    assert db.get_setting("schema_version") == "2"
+    assert db.get_setting("schema_version") == str(SCHEMA_VERSION)
     first = db.floors()[0]["id"]
     assert all(e["floor_id"] == first for e in db.employees())
     assert db.month_entries(2026, 6, first) == {
@@ -236,3 +238,129 @@ def test_an_employee_without_any_shift_still_appears_on_both_floors(ward):
     for floor in (f1, f2):
         visible = {e["id"] for e in db.employees_for_month(2026, 6)}
         assert maria in visible, floor
+
+
+def _app():
+    import os
+
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
+
+    return QApplication.instance() or QApplication([])
+
+
+def test_only_people_with_shifts_on_a_floor_are_listed(ward):
+    """Zespół potrafi liczyć trzydzieści osób — grafik piętra pokazuje tylko te,
+    które faktycznie na nim pracują."""
+    _app()
+    from app.ui.rota_model import RotaModel
+
+    db, f1, f2, anna, maria = ward
+    db.add_employee("Bez", "Dyżurów")
+    db.set_entry(anna, dt.date(2026, 6, 1), "D", f1)
+    db.set_entry(maria, dt.date(2026, 6, 1), "D", f2)
+
+    first = RotaModel(db, 2026, 6, f1)
+    assert [e["id"] for e in first.employees] == [anna]
+
+    second = RotaModel(db, 2026, 6, f2)
+    assert [e["id"] for e in second.employees] == [maria]
+
+
+def test_combined_view_shows_everyone_with_any_shift(ward):
+    _app()
+    from app.ui.rota_model import RotaModel
+
+    db, f1, f2, anna, maria = ward
+    db.set_entry(anna, dt.date(2026, 6, 1), "D", f1)
+    db.set_entry(maria, dt.date(2026, 6, 2), "N", f2)
+
+    model = RotaModel(db, 2026, 6, None)
+    assert model.combined
+    assert {e["id"] for e in model.employees} == {anna, maria}
+    # Widoczne są dyżury z obu pięter.
+    assert model._entries.keys() == {
+        (anna, dt.date(2026, 6, 1)), (maria, dt.date(2026, 6, 2)),
+    }
+
+
+def test_combined_view_cannot_be_edited(ward):
+    """Nie wiadomo, na które piętro zapisać dyżur, więc edycja jest wyłączona."""
+    _app()
+    from PySide6.QtCore import Qt
+
+    from app.ui.rota_model import RotaModel
+
+    db, f1, f2, anna, _ = ward
+    db.set_entry(anna, dt.date(2026, 6, 1), "D", f1)
+
+    model = RotaModel(db, 2026, 6, None)
+    index = model.index(0, 0)
+    assert not (model.flags(index) & Qt.ItemFlag.ItemIsEditable)
+    assert model.setData(index, "N") is False
+    model.set_range([(0, 1)], "N")
+    assert db.month_entries(2026, 6, f2) == {}
+
+
+def test_a_person_added_to_the_rota_shows_up_without_any_shift(ward):
+    _app()
+    from app.ui.rota_model import RotaModel
+
+    db, f1, f2, _, _ = ward
+    newcomer = db.add_employee("Nowa", "Osoba")
+
+    before = RotaModel(db, 2026, 6, f1)
+    assert newcomer not in [e["id"] for e in before.employees]
+
+    db.add_to_roster(2026, 6, f1, [newcomer])
+    after = RotaModel(db, 2026, 6, f1)
+    assert newcomer in [e["id"] for e in after.employees]
+    # Tylko na tym piętrze — drugie zostaje nietknięte.
+    assert newcomer not in [e["id"] for e in RotaModel(db, 2026, 6, f2).employees]
+
+
+def test_being_added_to_the_rota_survives_a_restart(ward, tmp_path):
+    """Dopisanie do grafiku jest zapisywane, a nie tylko trzymane w pamięci."""
+    db, f1, _, _, _ = ward
+    newcomer = db.add_employee("Nowa", "Osoba")
+    db.add_to_roster(2026, 6, f1, [newcomer])
+    path = db.path
+    db.close()
+
+    reopened = Database(path)
+    assert newcomer in [e["id"] for e in reopened.employees_on_floor(2026, 6, f1)]
+    reopened.close()
+
+
+def test_the_roster_is_per_month(ward):
+    db, f1, _, _, _ = ward
+    newcomer = db.add_employee("Nowa", "Osoba")
+    db.add_to_roster(2026, 6, f1, [newcomer])
+    assert db.employees_on_floor(2026, 7, f1) == []
+
+
+def test_someone_with_shifts_stays_even_without_a_roster_entry(ward):
+    """Dotychczasowe grafiki nie mają wpisów składu — muszą działać jak dotąd."""
+    db, f1, _, anna, _ = ward
+    db.set_entry(anna, dt.date(2026, 6, 1), "D", f1)
+    assert db.roster_ids(2026, 6, f1) == set()
+    assert [e["id"] for e in db.employees_on_floor(2026, 6, f1)] == [anna]
+
+
+def test_export_sheets_list_only_that_floors_team(ward, tmp_path):
+    from app.io import xlsx_import as xi
+    from app.io.xlsx_export import export_month
+
+    db, f1, f2, anna, maria = ward
+    db.add_employee("Bez", "Dyżurów")
+    db.set_entry(anna, dt.date(2026, 6, 1), "D", f1)
+    db.set_entry(maria, dt.date(2026, 6, 1), "D", f2)
+
+    path = export_month(tmp_path / "g.xlsx", db, 2026, 6)
+    sheets = {s.name: s for s in xi.read_sheets(path)}
+    first = "\n".join(" ".join(r) for r in sheets["I piętro"].cells)
+    second = "\n".join(" ".join(r) for r in sheets["II piętro"].cells)
+
+    assert "Kowalska" in first and "Nowak" not in first
+    assert "Nowak" in second and "Kowalska" not in second
+    assert "Bez" not in first and "Bez" not in second
