@@ -299,12 +299,16 @@ nie musi wychodzić na zero — liczy się dopiero suma z całego kwartału.</p>
 </table>
 <p class="warn">Suma nie przechodzi między kwartałami. Otwierając grafik
 października, zobaczysz bilans samego października — wrzesień należy już do
-poprzedniego kwartału, więc się nie doliczy.</p>
+poprzedniego kwartału, więc się nie doliczy. Kwartał, w którym jesteś, widać
+zawsze u góry okna, obok nazwy miesiąca.</p>
 
-<p>Liczone są tylko te miesiące kwartału, które mają <b>już ułożony
-grafik</b>, oraz zawsze ten oglądany. Pusty miesiąc z przyszłości jest
-pomijany — inaczej jego cały wymiar wyglądałby jak kilkadziesiąt brakujących
-godzin.</p>
+<p>Liczone są te miesiące kwartału, którymi już się zajmowano — czyli takie,
+w których jest wpisany choć jeden dyżur <b>albo sam skład</b> — oraz zawsze
+ten oglądany. Miesiąc, którego nikt jeszcze nie tknął, jest pomijany;
+inaczej jego cały wymiar wyglądałby jak kilkadziesiąt brakujących godzin.</p>
+<p>Jeśli więc przeniesiesz skład na styczeń i luty, ale nie wpiszesz jeszcze
+żadnych dyżurów, kolumna <b>Kwartał</b> pokaże brakujące godziny z obu tych
+miesięcy razem — bo oba są już w robocie.</p>
 <p><b>Najedź myszką na kolumnę Kwartał</b>, a zobaczysz rozbicie: który
 miesiąc ile wniósł i które miesiące nie zostały policzone, bo nie mają
 jeszcze grafiku. Dzięki temu zawsze da się sprawdzić, skąd wzięła się

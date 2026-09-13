@@ -253,3 +253,79 @@ def test_quarter_is_the_sum_of_the_monthly_balances(db):
     monthly = [minutes for _, _, minutes in model.quarter_detail[emp]]
     assert len(monthly) == 3
     assert sum(monthly) == model.quarter_balance[emp]
+
+
+# --- co znaczy "miesiąc już ułożony" ---------------------------------------
+
+def test_a_month_with_only_a_roster_counts_towards_the_quarter(db):
+    """Sytuacja z prawdziwego użycia: skład przeniesiony na styczeń i luty,
+    dyżurów jeszcze żadnych. Oba miesiące muszą się zsumować."""
+    from app.core.calendar_pl import month_norm as norm
+
+    emp = db.add_employee("Kowalska", "Anna")
+    floor = db.floors()[0]["id"]
+    db.add_to_roster(2027, 1, floor, [emp])
+    db.add_to_roster(2027, 2, floor, [emp])
+
+    expected = -(norm(2027, 1).minutes + norm(2027, 2).minutes)
+    for viewed in (1, 2):
+        model = _model(db, 2027, viewed)
+        assert model.quarter_months == [(2027, 1), (2027, 2)], viewed
+        assert model.quarter_balance[emp] == expected, viewed
+
+
+def test_a_month_nobody_has_touched_is_still_skipped(db):
+    """Pusty miesiąc bez składu i bez dyżurów nie może zaniżać kwartału."""
+    emp = db.add_employee("Kowalska", "Anna")
+    floor = db.floors()[0]["id"]
+    db.add_to_roster(2027, 1, floor, [emp])
+
+    model = _model(db, 2027, 1)
+    assert model.quarter_months == [(2027, 1)]     # luty i marzec pominięte
+
+
+def test_month_is_planned_recognises_both_signals(db):
+    emp = db.add_employee("Kowalska", "Anna")
+    floor = db.floors()[0]["id"]
+
+    assert not db.month_is_planned(2027, 1)
+    db.add_to_roster(2027, 1, floor, [emp])
+    assert db.month_is_planned(2027, 1)
+
+    assert not db.month_is_planned(2027, 3)
+    db.set_entry(emp, dt.date(2027, 3, 2), "D", floor)
+    assert db.month_is_planned(2027, 3)
+
+
+def test_quarter_sums_two_planned_months_with_shifts(db):
+    emp = db.add_employee("Testowa", "Osoba")
+    _fill_month(db, emp, 2027, 1, days=12)
+    _fill_month(db, emp, 2027, 2, days=13)
+
+    january = 12 * 720 - month_norm(2027, 1).minutes
+    february = 13 * 720 - month_norm(2027, 2).minutes
+    for viewed in (1, 2):
+        model = _model(db, 2027, viewed)
+        assert model.quarter_balance[emp] == january + february, viewed
+
+
+def test_the_same_month_in_another_year_is_a_different_quarter(db):
+    """Zmieniony miesiąc przy pozostawionym starym roku to inny kwartał."""
+    emp = db.add_employee("Testowa", "Osoba")
+    _fill_month(db, emp, 2027, 1, days=12)
+    _fill_month(db, emp, 2026, 2, days=13)
+
+    assert _model(db, 2027, 1).quarter_months == [(2027, 1)]
+    assert _model(db, 2026, 2).quarter_months == [(2026, 2)]
+
+
+def test_tooltip_distinguishes_no_rota_from_not_employed(db):
+    emp = db.add_employee("Testowa", "Osoba")
+    _fill_month(db, emp, 2027, 1, days=12)
+    _fill_month(db, emp, 2027, 2, days=13)
+    db.update_employee(emp, hired_on="2027-02-01")
+
+    model = _model(db, 2027, 2)
+    tip = model._summary_tooltip("kwartal", "opis", model._summaries[emp])
+    assert "brak grafiku" in tip and "marzec" in tip
+    assert "nie pracowała" in tip and "styczeń" in tip

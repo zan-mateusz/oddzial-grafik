@@ -12,7 +12,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.core.calendar_pl import PL_MONTHS_TITLE, day_kind, month_norm
+from app.core.calendar_pl import (
+    PL_MONTHS_TITLE, PL_QUARTER_NAMES, day_kind, month_norm, quarter_of,
+)
 from app.core.shifts import fmt_minutes
 from app.core.stats import daily_coverage
 from app.ui.delegates import ShiftCellDelegate
@@ -774,9 +776,15 @@ class RotaView(QWidget):
         if self.cmb_floor.isVisible():
             where = self.db.floor_name(self.floor_id) or COMBINED_LABEL
             floor_txt = f"{where}   •   "
+        # Kwartał wypisany wprost: przy planowaniu na przyszły rok łatwo
+        # zostawić stary rok w polu obok miesiąca, a wtedy bilans kwartalny
+        # sumuje się w zupełnie innym okresie.
+        quarter = PL_QUARTER_NAMES[quarter_of(self.model.month) - 1]
         self.lbl_norm.setText(
-            f"{floor_txt}{PL_MONTHS_TITLE[self.model.month - 1]} {self.model.year}   •   "
-            f"wymiar: {fmt_minutes(norm.minutes)} h  ({norm.working_days} dni roboczych)"
+            f"{floor_txt}{PL_MONTHS_TITLE[self.model.month - 1]} {self.model.year}"
+            f"   •   {quarter} {self.model.year}"
+            f"   •   wymiar: {fmt_minutes(norm.minutes)} h "
+            f"({norm.working_days} dni roboczych)"
         )
 
         total = sum(s.worked_minutes for s in self.model._summaries.values())

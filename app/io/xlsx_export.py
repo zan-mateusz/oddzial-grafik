@@ -144,8 +144,7 @@ def _quarter_balances(db, year, month, types, rules, current_summaries) -> dict:
     totals: dict[int, int] = {}
     for q_year, q_month in quarter_months(year, month):
         current = (q_year, q_month) == (year, month)
-        raw = db.month_entries(q_year, q_month)
-        if not raw and not current:
+        if not current and not db.month_is_planned(q_year, q_month):
             continue
         if current:
             summaries = current_summaries
@@ -153,7 +152,7 @@ def _quarter_balances(db, year, month, types, rules, current_summaries) -> dict:
             summaries = summarize_month(
                 q_year, q_month,
                 db.employees_for_month(q_year, q_month),
-                _resolved(raw, types), rules,
+                _resolved(db.month_entries(q_year, q_month), types), rules,
             )
         for emp_id, summary in summaries.items():
             totals[emp_id] = totals.get(emp_id, 0) + summary.balance_minutes

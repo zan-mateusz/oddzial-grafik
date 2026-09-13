@@ -338,12 +338,17 @@ Kwartały są **kalendarzowe**:
 
 > Suma nie przechodzi między kwartałami. Otwierając grafik
 października, zobaczysz bilans samego października — wrzesień należy już do
-poprzedniego kwartału, więc się nie doliczy.
+poprzedniego kwartału, więc się nie doliczy. Kwartał, w którym jesteś, widać
+zawsze u góry okna, obok nazwy miesiąca.
 
-Liczone są tylko te miesiące kwartału, które mają **już ułożony
-grafik**, oraz zawsze ten oglądany. Pusty miesiąc z przyszłości jest
-pomijany — inaczej jego cały wymiar wyglądałby jak kilkadziesiąt brakujących
-godzin.
+Liczone są te miesiące kwartału, którymi już się zajmowano — czyli takie,
+w których jest wpisany choć jeden dyżur **albo sam skład** — oraz zawsze
+ten oglądany. Miesiąc, którego nikt jeszcze nie tknął, jest pomijany;
+inaczej jego cały wymiar wyglądałby jak kilkadziesiąt brakujących godzin.
+
+Jeśli więc przeniesiesz skład na styczeń i luty, ale nie wpiszesz jeszcze
+żadnych dyżurów, kolumna **Kwartał** pokaże brakujące godziny z obu tych
+miesięcy razem — bo oba są już w robocie.
 
 **Najedź myszką na kolumnę Kwartał**, a zobaczysz rozbicie: który
 miesiąc ile wniósł i które miesiące nie zostały policzone, bo nie mają

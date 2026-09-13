@@ -410,6 +410,26 @@ class Database:
         )
         self.conn.commit()
 
+    def month_is_planned(self, year: int, month: int) -> bool:
+        """Czy ktoś się już tym miesiącem zajmował.
+
+        Wystarczy wpisany dyżur albo sam skład — dopisanie ludzi do grafiku
+        jest świadomą czynnością, więc taki miesiąc liczy się do kwartału,
+        nawet jeśli nie ma jeszcze ani jednego dyżuru.
+        """
+        first, last = self._month_bounds(year, month)
+        entry = self.conn.execute(
+            "SELECT 1 FROM entries WHERE day BETWEEN ? AND ? LIMIT 1",
+            (first, last),
+        ).fetchone()
+        if entry is not None:
+            return True
+        rostered = self.conn.execute(
+            "SELECT 1 FROM roster WHERE year=? AND month=? LIMIT 1",
+            (year, month),
+        ).fetchone()
+        return rostered is not None
+
     def copy_roster(self, source: tuple[int, int], target: tuple[int, int],
                     floor_id: int | None) -> int:
         """Przenosi skład piętra z jednego miesiąca do drugiego.

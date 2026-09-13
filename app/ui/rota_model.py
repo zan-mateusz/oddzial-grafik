@@ -225,14 +225,13 @@ class RotaModel(QAbstractTableModel):
 
         for year, month in quarter_months(self.year, self.month):
             current = (year, month) == (self.year, self.month)
-            raw = self.db.month_entries(year, month)
-            if not raw and not current:
+            if not current and not self.db.month_is_planned(year, month):
                 continue
             if current:
                 summaries = self._summaries
             else:
                 entries = {}
-                for key, text in raw.items():
+                for key, text in self.db.month_entries(year, month).items():
                     entry = resolve(text, self._types)
                     if entry is not None:
                         entries[key] = entry
@@ -482,14 +481,30 @@ class RotaModel(QAbstractTableModel):
             lines.append(f"   {PL_MONTHS[month - 1]}: {fmt_signed(minutes)}")
 
         counted = {(y, m) for y, m, _ in detail}
-        missing = [
+        planned = set(self.quarter_months)
+
+        # Miesiąc bez grafiku dotyczy wszystkich; miesiąc ułożony, ale bez
+        # udziału tej osoby, znaczy że wtedy jeszcze albo już nie pracowała.
+        no_rota = [
             m for y, m in quarter_months(self.year, self.month)
-            if (y, m) not in counted
+            if (y, m) not in planned
         ]
-        if missing:
-            names = ", ".join(PL_MONTHS[m - 1] for m in missing)
+        not_employed = [
+            m for y, m in quarter_months(self.year, self.month)
+            if (y, m) in planned and (y, m) not in counted
+        ]
+        if no_rota:
             lines.append("")
-            lines.append(f"Nie liczone (brak grafiku): {names}")
+            lines.append(
+                "Nie liczone (brak grafiku): "
+                + ", ".join(PL_MONTHS[m - 1] for m in no_rota)
+            )
+        if not_employed:
+            lines.append("")
+            lines.append(
+                "Nie liczone (osoba wtedy nie pracowała): "
+                + ", ".join(PL_MONTHS[m - 1] for m in not_employed)
+            )
         return lines
 
     def setData(self, index: QModelIndex, value, role=Qt.ItemDataRole.EditRole) -> bool:

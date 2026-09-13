@@ -622,3 +622,16 @@ def test_a_genuinely_empty_month_still_offers_the_three_ways(qapp, db):
     assert view.hint_actions.isVisibleTo(view.empty_hint)
     assert "jeszcze pusty" in view.hint_title.text()
     window.close()
+
+
+def test_header_states_the_quarter(qapp, db):
+    """Rok bywa zostawiony stary przy zmianie miesiąca — kwartał to ujawnia."""
+    from app.ui.main_window import MainWindow
+
+    window = MainWindow(db)
+    view = window.rota_view
+    view.set_month(2027, 1)
+    assert "I kwartał 2027" in view.lbl_norm.text()
+    view.set_month(2027, 10)
+    assert "IV kwartał 2027" in view.lbl_norm.text()
+    window.close()
