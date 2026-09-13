@@ -6,7 +6,7 @@ import datetime as dt
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction, QBrush, QColor, QFont, QKeySequence
 from PySide6.QtWidgets import (
-    QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout,
+    QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMenu,
     QMessageBox, QPushButton, QSpinBox, QTableView, QToolButton, QVBoxLayout,
     QWidget,
@@ -188,9 +188,14 @@ class RotaView(QWidget):
         floors = db.floors()
         self.floor_id = floors[0]["id"] if floors else None
         self.model = RotaModel(db, today.year, today.month, self.floor_id, self)
+        self.model.hide_without_shifts = (
+            db.get_setting("hide_rows_without_shifts", "0") == "1"
+        )
+        self.model.reload()
         self.model.entryChanged.connect(self._on_edited)
 
         self._build_ui()
+        self.chk_hide_empty.setChecked(self.model.hide_without_shifts)
         self._apply_month_to_controls()
         self._refresh_palette()
         self._refresh_footer()
@@ -269,16 +274,24 @@ class RotaView(QWidget):
         )
         panel.setObjectName("pustyGrafik")
 
-        title = QLabel("Ten grafik jest jeszcze pusty")
+        self.hint_title = QLabel("Ten grafik jest jeszcze pusty")
         font = QFont()
         font.setPointSize(13)
         font.setBold(True)
-        title.setFont(font)
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.hint_title.setFont(font)
+        self.hint_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        subtitle = QLabel("Wybierz, od czego zacząć:")
-        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        subtitle.setStyleSheet("color:#555;")
+        self.hint_subtitle = QLabel("Wybierz, od czego zacząć:")
+        self.hint_subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.hint_subtitle.setStyleSheet("color:#555;")
+
+        # Osobny przycisk na wypadek, gdy tabela jest pusta tylko dlatego,
+        # że wszystkie osoby zostały ukryte.
+        self.btn_show_hidden = QPushButton("Pokaż osoby bez dyżurów")
+        self.btn_show_hidden.clicked.connect(
+            lambda: self.chk_hide_empty.setChecked(False)
+        )
+        self.btn_show_hidden.hide()
 
         actions = QHBoxLayout()
         actions.addStretch(1)
@@ -292,12 +305,16 @@ class RotaView(QWidget):
             actions.addWidget(button)
         actions.addStretch(1)
 
+        self.hint_actions = QWidget()
+        self.hint_actions.setLayout(actions)
+
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(24, 18, 24, 18)
-        layout.addWidget(title)
-        layout.addWidget(subtitle)
+        layout.addWidget(self.hint_title)
+        layout.addWidget(self.hint_subtitle)
         layout.addSpacing(8)
-        layout.addLayout(actions)
+        layout.addWidget(self.hint_actions)
+        layout.addWidget(self.btn_show_hidden)
         panel.hide()
         return panel
 
@@ -310,8 +327,25 @@ class RotaView(QWidget):
     def _update_empty_hint(self) -> None:
         empty = self.model.rowCount() == 0 and self.floor_id is not None
         self.empty_hint.setVisible(empty)
-        if empty:
-            self._centre_empty_hint()
+        if not empty:
+            return
+
+        hidden = self.model.hidden_count
+        if hidden:
+            # Tabela jest pusta wyłącznie przez ukrycie — mówimy o tym wprost,
+            # zamiast pokazywać pustą siatkę i propozycję dodania ludzi.
+            self.hint_title.setText(
+                f"Wszystkie osoby w składzie ({hidden}) nie mają jeszcze dyżurów"
+            )
+            self.hint_subtitle.setText("Są ukryte, bo włączono „Ukryj bez dyżurów”.")
+            self.hint_actions.hide()
+            self.btn_show_hidden.show()
+        else:
+            self.hint_title.setText("Ten grafik jest jeszcze pusty")
+            self.hint_subtitle.setText("Wybierz, od czego zacząć:")
+            self.hint_actions.show()
+            self.btn_show_hidden.hide()
+        self._centre_empty_hint()
 
     def _centre_empty_hint(self) -> None:
         viewport = self.table.viewport()
@@ -363,6 +397,13 @@ class RotaView(QWidget):
         )
         self.btn_remove.clicked.connect(self._remove_from_rota_dialog)
 
+        self.chk_hide_empty = QCheckBox("Ukryj bez dyżurów")
+        self.chk_hide_empty.setToolTip(
+            "Chowa osoby, które są w składzie, ale nie mają jeszcze "
+            "przydzielonego żadnego dyżuru"
+        )
+        self.chk_hide_empty.stateChanged.connect(self._on_hide_toggled)
+
         self.btn_copy_team = QPushButton("Skład z poprzedniego miesiąca")
         self.btn_copy_team.setToolTip(
             "Przenieś do tego grafiku te same osoby co miesiąc wcześniej, "
@@ -384,6 +425,7 @@ class RotaView(QWidget):
         bar.addWidget(self.btn_add)
         bar.addWidget(self.btn_remove)
         bar.addWidget(self.btn_copy_team)
+        bar.addWidget(self.chk_hide_empty)
         bar.addSpacing(16)
 
         self.lbl_norm = QLabel()
@@ -577,6 +619,13 @@ class RotaView(QWidget):
         self._resize_columns()
         self._refresh_footer()
 
+    def _on_hide_toggled(self) -> None:
+        hide = self.chk_hide_empty.isChecked()
+        self.db.set_setting("hide_rows_without_shifts", "1" if hide else "0")
+        self.model.set_hide_without_shifts(hide)
+        self._resize_columns()
+        self._refresh_footer()
+
     def _previous_month(self) -> tuple[int, int]:
         year, month = self.model.year, self.model.month
         return (year - 1, 12) if month == 1 else (year, month - 1)
@@ -748,13 +797,17 @@ class RotaView(QWidget):
             f" &nbsp; <span style='color:#B00020;font-weight:600'>"
             f"⚠ nierozpoznane wpisy: {unknown}</span>" if unknown else ""
         )
+        hidden_txt = ""
+        if self.model.hidden_count:
+            hidden_txt = (f" &nbsp;•&nbsp; <span style='color:#8C4A00'>ukryto "
+                          f"bez dyżurów: <b>{self.model.hidden_count}</b></span>")
         mode_txt = ""
         if self.floor_id is None:
             mode_txt = (" &nbsp;•&nbsp; <span style='color:#8C4A00'>widok łączny "
                         "— dyżury wpisujesz w grafiku konkretnego piętra</span>")
         self.footer.setText(
             f"<span style='color:#444'>Pracowników w grafiku: <b>{staff}</b>"
-            f"{mode_txt} &nbsp;•&nbsp; "
+            f"{hidden_txt}{mode_txt} &nbsp;•&nbsp; "
             f"łącznie godzin: <b>{fmt_minutes(total)}</b> &nbsp;•&nbsp; "
             f"święta: {hol_txt}</span>{coverage_txt}{warn}"
         )

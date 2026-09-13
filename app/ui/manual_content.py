@@ -195,6 +195,18 @@ odnaleźć nazwisko.</p>
 więc osoba nie zniknie po zamknięciu programu, nawet jeśli nie ma jeszcze
 ani jednego dyżuru.</p>
 
+<h3>Ukrywanie osób bez dyżurów</h3>
+<p>Po przeniesieniu składu z poprzedniego miesiąca wszyscy mają jeszcze zero
+dyżurów — i tak ma być, bo dopiero zaczynasz układać. Gdy grafik jest już
+w większości gotowy, puste wiersze zaczynają przeszkadzać. Zaznacz wtedy
+<b>Ukryj bez dyżurów</b> nad tabelą.</p>
+<p>Ukryte są wyłącznie osoby, które <b>nie mają w tym miesiącu ani jednego
+dyżuru na tym piętrze</b>. Ich liczbę widać pod tabelą. Ustawienie jest
+zapamiętywane między uruchomieniami programu.</p>
+<p>Gdyby po ukryciu tabela okazała się pusta, program o tym powie i zaproponuje
+ponowne pokazanie tych osób — pusta tabela nie będzie więc wyglądać na brak
+składu.</p>
+
 <h3>Usunięcie osób z grafiku piętra</h3>
 <p>Przycisk <b>Usuń z grafiku…</b> otwiera listę z polami do zaznaczenia —
 możesz zdjąć ze składu jedną osobę albo kilka naraz. Przyciski

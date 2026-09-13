@@ -523,3 +523,102 @@ def test_remove_dialog_reports_the_shifts_at_stake(qapp, db):
     dialog._set_all(Qt.CheckState.Unchecked)
     assert dialog.selected_shift_count() == 0
     dialog.close()
+
+
+def test_hiding_people_without_shifts(qapp, db):
+    """Ludzie dopisani do składu bez dyżuru bywają zbędnym szumem."""
+    from app.ui.main_window import MainWindow
+
+    today = dt.date.today()
+    seed_demo(db, today.year, today.month)
+    window = MainWindow(db)
+    view = window.rota_view
+    floor = view.floor_id
+
+    newcomer = db.add_employee("AAAAA", "BBBBB")
+    db.add_to_roster(today.year, today.month, floor, [newcomer])
+    view.refresh()
+    assert newcomer in [e["id"] for e in view.model.employees]
+
+    view.chk_hide_empty.setChecked(True)
+    assert newcomer not in [e["id"] for e in view.model.employees]
+    assert view.model.hidden_count == 1
+
+    view.chk_hide_empty.setChecked(False)
+    assert newcomer in [e["id"] for e in view.model.employees]
+    assert view.model.hidden_count == 0
+    window.close()
+
+
+def test_people_with_shifts_are_never_hidden(qapp, db):
+    from app.ui.main_window import MainWindow
+
+    today = dt.date.today()
+    seed_demo(db, today.year, today.month)
+    window = MainWindow(db)
+    view = window.rota_view
+
+    before = {e["id"] for e in view.model.employees}
+    view.chk_hide_empty.setChecked(True)
+    assert {e["id"] for e in view.model.employees} == before
+    assert view.model.hidden_count == 0
+    window.close()
+
+
+def test_the_hide_setting_is_remembered(qapp, db):
+    from app.ui.main_window import MainWindow
+
+    today = dt.date.today()
+    seed_demo(db, today.year, today.month)
+    window = MainWindow(db)
+    window.rota_view.chk_hide_empty.setChecked(True)
+    window.close()
+
+    again = MainWindow(db)
+    assert again.rota_view.chk_hide_empty.isChecked()
+    assert again.rota_view.model.hide_without_shifts
+    again.close()
+
+
+def test_an_all_hidden_grid_explains_itself(qapp, db):
+    """Pusta tabela po ukryciu nie może wyglądać jak brak składu."""
+    from app.ui.main_window import MainWindow
+
+    today = dt.date.today()
+    seed_demo(db, today.year, today.month)
+    window = MainWindow(db)
+    view = window.rota_view
+
+    view._step_month(1)                       # pusty miesiąc
+    view._copy_previous_team()                # sam skład, bez dyżurów
+    assert view.model.rowCount() > 0
+
+    view.chk_hide_empty.setChecked(True)
+    assert view.model.rowCount() == 0
+    assert view.empty_hint.isVisibleTo(view)
+    assert view.btn_show_hidden.isVisibleTo(view.empty_hint)
+    assert not view.hint_actions.isVisibleTo(view.empty_hint)
+    assert "nie mają jeszcze dyżurów" in view.hint_title.text()
+
+    # Przycisk w podpowiedzi odkrywa ukrytych.
+    view.btn_show_hidden.click()
+    assert not view.chk_hide_empty.isChecked()
+    assert view.model.rowCount() > 0
+    window.close()
+
+
+def test_a_genuinely_empty_month_still_offers_the_three_ways(qapp, db):
+    from app.ui.main_window import MainWindow
+
+    today = dt.date.today()
+    seed_demo(db, today.year, today.month)
+    window = MainWindow(db)
+    view = window.rota_view
+    view.chk_hide_empty.setChecked(True)
+
+    view._step_month(1)
+    assert view.model.rowCount() == 0
+    assert view.model.hidden_count == 0
+    assert view.hint_actions.isVisibleTo(view.empty_hint)
+    assert "jeszcze pusty" in view.hint_title.text()
+    window.close()

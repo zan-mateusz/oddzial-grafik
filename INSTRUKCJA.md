@@ -220,6 +220,21 @@ Dopisanie dotyczy **tego piętra i tego miesiąca**. Zostaje zapamiętane,
 więc osoba nie zniknie po zamknięciu programu, nawet jeśli nie ma jeszcze
 ani jednego dyżuru.
 
+### Ukrywanie osób bez dyżurów
+
+Po przeniesieniu składu z poprzedniego miesiąca wszyscy mają jeszcze zero
+dyżurów — i tak ma być, bo dopiero zaczynasz układać. Gdy grafik jest już
+w większości gotowy, puste wiersze zaczynają przeszkadzać. Zaznacz wtedy
+**Ukryj bez dyżurów** nad tabelą.
+
+Ukryte są wyłącznie osoby, które **nie mają w tym miesiącu ani jednego
+dyżuru na tym piętrze**. Ich liczbę widać pod tabelą. Ustawienie jest
+zapamiętywane między uruchomieniami programu.
+
+Gdyby po ukryciu tabela okazała się pusta, program o tym powie i zaproponuje
+ponowne pokazanie tych osób — pusta tabela nie będzie więc wyglądać na brak
+składu.
+
 ### Usunięcie osób z grafiku piętra
 
 Przycisk **Usuń z grafiku…** otwiera listę z polami do zaznaczenia —

@@ -104,6 +104,8 @@ class RotaModel(QAbstractTableModel):
         self._summaries: dict = {}
         self._floor_summaries: dict = {}
         self._has_sick_anywhere = False
+        self.hide_without_shifts = False
+        self.hidden_count = 0
         self.quarter_balance: dict[int, int] = {}
         self.quarter_months: list[tuple[int, int]] = []
         self._types: dict = {}
@@ -114,6 +116,14 @@ class RotaModel(QAbstractTableModel):
     def set_month(self, year: int, month: int) -> None:
         self.beginResetModel()
         self.year, self.month = year, month
+        self._load()
+        self.endResetModel()
+
+    def set_hide_without_shifts(self, hide: bool) -> None:
+        if hide == self.hide_without_shifts:
+            return
+        self.beginResetModel()
+        self.hide_without_shifts = hide
         self._load()
         self.endResetModel()
 
@@ -140,6 +150,16 @@ class RotaModel(QAbstractTableModel):
         self.employees = self.db.employees_on_floor(
             self.year, self.month, self.floor_id
         )
+        # Osoby dopisane do składu, którym nie przydzielono jeszcze dyżuru,
+        # można ukryć — przy dużym zespole puste wiersze przeszkadzają.
+        self.hidden_count = 0
+        if self.hide_without_shifts:
+            counts = self.db.shift_counts_on_floor(
+                self.year, self.month, self.floor_id
+            )
+            with_shifts = [e for e in self.employees if counts.get(e["id"])]
+            self.hidden_count = len(self.employees) - len(with_shifts)
+            self.employees = with_shifts
         # Komórki pokazują dyżury tego piętra; sumy liczą cały miesiąc.
         all_raw = self.db.month_entries(self.year, self.month)
         self._raw = (
