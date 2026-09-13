@@ -7,8 +7,8 @@ from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont
 
 from app.core.calendar_pl import (
-    DayKind, PL_WEEKDAYS_SHORT, day_kind, holiday_name, month_days,
-    quarter_months,
+    DayKind, PL_MONTHS, PL_QUARTER_NAMES, PL_WEEKDAYS_SHORT, day_kind,
+    holiday_name, month_days, quarter_months, quarter_of,
 )
 from app.core.rules import load_rules
 from app.core.shifts import (
@@ -219,6 +219,8 @@ class RotaModel(QAbstractTableModel):
         """
         self.quarter_balance: dict[int, int] = {}
         self.quarter_months: list[tuple[int, int]] = []
+        # Rozbicie na miesiące — żeby dało się sprawdzić, skąd bierze się suma.
+        self.quarter_detail: dict[int, list[tuple[int, int, int]]] = {}
 
         for year, month in quarter_months(self.year, self.month):
             current = (year, month) == (self.year, self.month)
@@ -242,6 +244,9 @@ class RotaModel(QAbstractTableModel):
             for emp_id, summary in summaries.items():
                 self.quarter_balance[emp_id] = (
                     self.quarter_balance.get(emp_id, 0) + summary.balance_minutes
+                )
+                self.quarter_detail.setdefault(emp_id, []).append(
+                    (year, month, summary.balance_minutes)
                 )
 
     def _build_columns(self) -> list[tuple[str, str, str]]:
@@ -437,7 +442,9 @@ class RotaModel(QAbstractTableModel):
 
     def _summary_tooltip(self, key: str, base: str, month) -> str:
         extra: list[str] = []
-        if key == "noc":
+        if key == "kwartal":
+            extra.extend(self._quarter_breakdown(month.employee_id))
+        elif key == "noc":
             window = (f"{self.rules.night_start.strftime('%H:%M')}–"
                       f"{self.rules.night_end.strftime('%H:%M')}")
             extra.append(f"Przyjęta pora nocna: {window}")
@@ -458,9 +465,26 @@ class RotaModel(QAbstractTableModel):
         elif key == "bilans":
             extra.append(f"Wypracowane godziny: {month.worked_hhmm}")
             extra.append(f"Wymiar: {month.norm_hhmm}")
-        elif key == "zastepcze":
-            extra.append("Dyżury odbyte na piętrze innym niż macierzyste")
         return base + ("\n\n" + "\n".join(extra) if extra else "")
+
+    def _quarter_breakdown(self, emp_id: int) -> list[str]:
+        """Miesiąc po miesiącu — z czego składa się bilans kwartalny."""
+        quarter = quarter_of(self.month)
+        lines = [f"{PL_QUARTER_NAMES[quarter - 1]} {self.year}:"]
+        detail = self.quarter_detail.get(emp_id, [])
+        for year, month, minutes in detail:
+            lines.append(f"   {PL_MONTHS[month - 1]}: {fmt_signed(minutes)}")
+
+        counted = {(y, m) for y, m, _ in detail}
+        missing = [
+            m for y, m in quarter_months(self.year, self.month)
+            if (y, m) not in counted
+        ]
+        if missing:
+            names = ", ".join(PL_MONTHS[m - 1] for m in missing)
+            lines.append("")
+            lines.append(f"Nie liczone (brak grafiku): {names}")
+        return lines
 
     def setData(self, index: QModelIndex, value, role=Qt.ItemDataRole.EditRole) -> bool:
         if role != Qt.ItemDataRole.EditRole or not index.isValid():

@@ -282,16 +282,32 @@ w grafiku. Większość podaje <b>liczbę dni i łączny czas</b> w postaci
 <p>Dotyczy to zarówno kolumny <b>Bilans</b>, jak i <b>Kwartał</b>.</p>
 
 <h3>Bilans kwartalny</h3>
+<p><b>Kwartał to suma bilansów miesięcznych, a nie suma przepracowanych
+godzin.</b> Jeśli w trzech miesiącach przepracowano po 150 godzin przy
+wymiarze około 160, kolumna pokaże około <b>−30</b>, a nie 450.</p>
 <p>Nadgodziny rozliczają się w okresie kwartalnym, więc pojedynczy miesiąc
-nie musi wychodzić na zero — liczy się suma z całego kwartału. Kolumna
-<b>Kwartał</b> pokazuje tę sumę narastająco.</p>
-<p>Kwartały są kalendarzowe: styczeń–marzec, kwiecień–czerwiec,
-lipiec–wrzesień, październik–grudzień.</p>
+nie musi wychodzić na zero — liczy się dopiero suma z całego kwartału.</p>
+
+<p>Kwartały są <b>kalendarzowe</b>:</p>
+<table>
+<tr><th>Kwartał</th><th>Miesiące</th></tr>
+<tr><td>I</td><td>styczeń, luty, marzec</td></tr>
+<tr><td>II</td><td>kwiecień, maj, czerwiec</td></tr>
+<tr><td>III</td><td>lipiec, sierpień, wrzesień</td></tr>
+<tr><td>IV</td><td>październik, listopad, grudzień</td></tr>
+</table>
+<p class="warn">Suma nie przechodzi między kwartałami. Otwierając grafik
+października, zobaczysz bilans samego października — wrzesień należy już do
+poprzedniego kwartału, więc się nie doliczy.</p>
+
 <p>Liczone są tylko te miesiące kwartału, które mają <b>już ułożony
 grafik</b>, oraz zawsze ten oglądany. Pusty miesiąc z przyszłości jest
 pomijany — inaczej jego cały wymiar wyglądałby jak kilkadziesiąt brakujących
-godzin. Najedź myszką na kolumnę, aby zobaczyć, które miesiące zostały
-policzone.</p>
+godzin.</p>
+<p><b>Najedź myszką na kolumnę Kwartał</b>, a zobaczysz rozbicie: który
+miesiąc ile wniósł i które miesiące nie zostały policzone, bo nie mają
+jeszcze grafiku. Dzięki temu zawsze da się sprawdzić, skąd wzięła się
+ta liczba.</p>
 
 <h3>Dyżury na piętrach</h3>
 <p>Każde piętro ma własną kolumnę, więc od razu widać rozkład dyżurów danej

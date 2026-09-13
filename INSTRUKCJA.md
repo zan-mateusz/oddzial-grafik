@@ -319,18 +319,35 @@ Dotyczy to zarówno kolumny **Bilans**, jak i **Kwartał**.
 
 ### Bilans kwartalny
 
-Nadgodziny rozliczają się w okresie kwartalnym, więc pojedynczy miesiąc
-nie musi wychodzić na zero — liczy się suma z całego kwartału. Kolumna
-**Kwartał** pokazuje tę sumę narastająco.
+**Kwartał to suma bilansów miesięcznych, a nie suma przepracowanych
+godzin.** Jeśli w trzech miesiącach przepracowano po 150 godzin przy
+wymiarze około 160, kolumna pokaże około **−30**, a nie 450.
 
-Kwartały są kalendarzowe: styczeń–marzec, kwiecień–czerwiec,
-lipiec–wrzesień, październik–grudzień.
+Nadgodziny rozliczają się w okresie kwartalnym, więc pojedynczy miesiąc
+nie musi wychodzić na zero — liczy się dopiero suma z całego kwartału.
+
+Kwartały są **kalendarzowe**:
+
+| Kwartał | Miesiące |
+|---|---|
+| I | styczeń, luty, marzec |
+| II | kwiecień, maj, czerwiec |
+| III | lipiec, sierpień, wrzesień |
+| IV | październik, listopad, grudzień |
+
+> Suma nie przechodzi między kwartałami. Otwierając grafik
+października, zobaczysz bilans samego października — wrzesień należy już do
+poprzedniego kwartału, więc się nie doliczy.
 
 Liczone są tylko te miesiące kwartału, które mają **już ułożony
 grafik**, oraz zawsze ten oglądany. Pusty miesiąc z przyszłości jest
 pomijany — inaczej jego cały wymiar wyglądałby jak kilkadziesiąt brakujących
-godzin. Najedź myszką na kolumnę, aby zobaczyć, które miesiące zostały
-policzone.
+godzin.
+
+**Najedź myszką na kolumnę Kwartał**, a zobaczysz rozbicie: który
+miesiąc ile wniósł i które miesiące nie zostały policzone, bo nie mają
+jeszcze grafiku. Dzięki temu zawsze da się sprawdzić, skąd wzięła się
+ta liczba.
 
 ### Dyżury na piętrach
 

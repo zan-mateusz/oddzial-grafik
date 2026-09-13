@@ -201,3 +201,55 @@ def test_demo_mode_is_safe_to_run_twice(tmp_path, monkeypatch):
     second, _ = _open_database(argparse.Namespace(db=None, demo=True, month=None))
     assert len(second.employees()) == people    # bez dublowania zespołu
     second.close()
+
+
+def test_quarter_tooltip_shows_where_the_number_comes_from(db):
+    """Suma kwartalna ma się tłumaczyć sama — inaczej nie da się jej sprawdzić."""
+    emp = db.add_employee("Testowa", "Osoba")
+    _fill_month(db, emp, 2026, 8, days=13)
+    _fill_month(db, emp, 2026, 9, days=13)
+
+    model = _model(db, 2026, 9)
+    tip = model._summary_tooltip("kwartal", "opis", model._summaries[emp])
+
+    assert "III kwartał 2026" in tip
+    assert "sierpień" in tip and "wrzesień" in tip
+    # Lipiec nie ma grafiku, więc nie jest liczony — i trzeba to powiedzieć.
+    assert "Nie liczone" in tip and "lipiec" in tip
+
+
+def test_quarter_tooltip_lists_no_omissions_when_all_months_are_planned(db):
+    emp = db.add_employee("Testowa", "Osoba")
+    for month in (7, 8, 9):
+        _fill_month(db, emp, 2026, month, days=13)
+
+    model = _model(db, 2026, 9)
+    tip = model._summary_tooltip("kwartal", "opis", model._summaries[emp])
+    assert "Nie liczone" not in tip
+    assert all(name in tip for name in ("lipiec", "sierpień", "wrzesień"))
+
+
+def test_months_from_the_previous_quarter_are_not_counted(db):
+    """Kwartały są kalendarzowe: wrzesień i październik nie sumują się razem."""
+    emp = db.add_employee("Testowa", "Osoba")
+    _fill_month(db, emp, 2026, 9, days=13)
+    _fill_month(db, emp, 2026, 10, days=13)
+
+    october = _model(db, 2026, 10)
+    assert october.quarter_months == [(2026, 10)]
+
+    september = _model(db, 2026, 9)
+    assert september.quarter_months == [(2026, 9)]
+    assert (2026, 10) not in september.quarter_months
+
+
+def test_quarter_is_the_sum_of_the_monthly_balances(db):
+    """Bilans kwartalny to suma bilansów, nie suma godzin."""
+    emp = db.add_employee("Testowa", "Osoba")
+    for month in (7, 8, 9):
+        _fill_month(db, emp, 2026, month, days=13)
+
+    model = _model(db, 2026, 9)
+    monthly = [minutes for _, _, minutes in model.quarter_detail[emp]]
+    assert len(monthly) == 3
+    assert sum(monthly) == model.quarter_balance[emp]
