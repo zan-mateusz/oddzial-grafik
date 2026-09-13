@@ -50,7 +50,8 @@ def test_main_window_builds_with_data(qapp, db):
     window.close()
 
 
-def test_switching_floors_changes_the_roster(qapp, db):
+def test_the_roster_is_the_same_on_every_floor(qapp, db):
+    """Zespół rotuje, więc oba piętra pokazują te same osoby."""
     from app.ui.main_window import MainWindow
 
     today = dt.date.today()
@@ -61,25 +62,31 @@ def test_switching_floors_changes_the_roster(qapp, db):
     first = {e["id"] for e in view.model.employees}
     view.cmb_floor.setCurrentIndex(1)
     second = {e["id"] for e in view.model.employees}
-    assert first != second
+    assert first == second
     assert view.floor_id == db.floors()[1]["id"]
     window.close()
 
 
-def test_cover_columns_appear_only_with_several_floors(qapp, db):
+def test_a_column_per_floor(qapp, db):
     from app.ui.rota_model import RotaModel
 
     today = dt.date.today()
-    model = RotaModel(db, today.year, today.month, db.floors()[0]["id"])
+    floors = db.floors()
+    model = RotaModel(db, today.year, today.month, floors[0]["id"])
     keys = [c[0] for c in model.summary_columns]
-    assert "glowne" in keys and "zastepcze" in keys
+    for floor in floors:
+        assert f"pietro_{floor['id']}" in keys
+    labels = [c[1] for c in model.summary_columns]
+    assert [f["name"] for f in floors] == [l for l in labels if l in
+                                           {f["name"] for f in floors}]
 
-    for floor in db.floors()[1:]:
+    for floor in floors[1:]:
         db.delete_floor(floor["id"])
     model.set_floor(db.floors()[0]["id"])
     keys = [c[0] for c in model.summary_columns]
-    # Przy jednym piętrze rozróżnienie nie ma sensu — zostaje jedna kolumna.
-    assert "glowne" in keys and "zastepcze" not in keys
+    # Przy jednym piętrze rozbicie nie ma sensu — zostaje jedna kolumna.
+    assert "dyzury" in keys
+    assert not any(k.startswith("pietro_") for k in keys)
 
 
 def test_sick_column_appears_only_when_needed(qapp, db):

@@ -11,11 +11,11 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 from app.core.calendar_pl import (
     DayKind, PL_MONTHS_TITLE, PL_WEEKDAYS_SHORT, day_kind, holiday_name,
-    month_days, month_norm,
+    month_days, month_norm, quarter_months,
 )
 from app.core.rules import load_rules
 from app.core.shifts import (
-    Category, Entry, ShiftType, fmt_days_hours, fmt_minutes, resolve,
+    Category, Entry, ShiftType, fmt_days_hours, fmt_minutes, fmt_signed, resolve,
 )
 from app.core.stats import summarize_month
 
@@ -52,14 +52,16 @@ NARROW = 10
 WIDE = 13
 
 
-def _headers(multi: bool, has_sick: bool):
+def _headers(floors, has_sick: bool):
+    """Ten sam zestaw kolumn co na ekranie."""
     columns = [("wymiar", "Wymiar", NARROW)]
-    if multi:
-        columns += [("glowne", "Dyż. gł.", WIDE), ("zastepcze", "Dyż. zast.", WIDE)]
+    if len(floors) > 1:
+        columns += [(f"pietro_{f['id']}", f["name"], WIDE) for f in floors]
     else:
-        columns.append(("glowne", "Dyżury", WIDE))
+        columns.append(("dyzury", "Dyżury", WIDE))
     columns += [
         ("bilans", "Bilans", NARROW),
+        ("kwartal", "Kwartał", NARROW),
         ("dzien", "Dzień", WIDE),
         ("noc", "Noc", WIDE),
         ("swieta", "Święta", WIDE),
@@ -95,42 +97,64 @@ def export_month(
     has_sick = any(e.category is Category.SICK for e in all_entries.values())
 
     floors = db.floors() or [None]
+    employees = db.employees_for_month(year, month)
+    month_summaries = summarize_month(year, month, employees, all_entries, rules)
+    quarter = _quarter_balances(db, year, month, types, rules, month_summaries)
+
+    per_floor = {}
+    for floor in floors:
+        floor_id = floor["id"] if floor is not None else None
+        scoped = {
+            key: entry for key, entry in all_entries.items()
+            if entry_floors.get(key) == floor_id
+        }
+        per_floor[floor_id] = summarize_month(
+            year, month, employees, scoped, rules
+        )
+
     wb = Workbook()
     wb.remove(wb.active)
 
     for floor in floors:
         floor_id = floor["id"] if floor is not None else None
         floor_label = floor["name"] if floor is not None else ""
-        employees = db.employees_for_month(year, month, floor_id)
         floor_entries = _resolved(db.month_entries(year, month, floor_id), types)
-        # Podział na dyżury własne i zastępcze jest cechą pracownika, więc
-        # liczymy go z wpisów całego miesiąca, nie tylko z tego piętra.
-        home = {e["id"]: e["floor_id"] for e in employees}
-        main_entries, cover_entries = {}, {}
-        for key, entry in all_entries.items():
-            where = entry_floors.get(key)
-            target = main_entries if where == home.get(key[0]) else cover_entries
-            target[key] = entry
-
-        month_summaries = summarize_month(year, month, employees, all_entries, rules)
-        main_summaries = summarize_month(year, month, employees, main_entries, rules)
-        cover_summaries = summarize_month(year, month, employees, cover_entries, rules)
 
         ws = wb.create_sheet(_sheet_title(floor_label, year, month))
         _write_title(ws, year, month, norm, ward_name, len(days), floor_label)
         header_row = 4
-        multi = len(floors) > 1 and floor is not None
-        _write_headers(ws, header_row, days, multi, has_sick)
+        _write_headers(ws, header_row, days, floors, has_sick)
         last_row = _write_body(
             ws, header_row + 1, days, employees, floor_entries,
-            month_summaries, main_summaries, cover_summaries, multi,
-            floor_id, has_sick,
+            month_summaries, per_floor, quarter, floors, has_sick,
         )
-        _write_legend(ws, last_row + 2, db.shift_types(), multi)
-        _apply_layout(ws, days, header_row, last_row, multi, has_sick)
+        _write_legend(ws, last_row + 2, db.shift_types(), len(floors) > 1)
+        _apply_layout(ws, days, header_row, last_row, floors, has_sick)
 
     wb.save(path)
     return path
+
+
+def _quarter_balances(db, year, month, types, rules, current_summaries) -> dict:
+    """Bilans narastająco w kwartale — jak na ekranie, liczone tylko dla
+    miesięcy, które mają już ułożony grafik."""
+    totals: dict[int, int] = {}
+    for q_year, q_month in quarter_months(year, month):
+        current = (q_year, q_month) == (year, month)
+        raw = db.month_entries(q_year, q_month)
+        if not raw and not current:
+            continue
+        if current:
+            summaries = current_summaries
+        else:
+            summaries = summarize_month(
+                q_year, q_month,
+                db.employees_for_month(q_year, q_month),
+                _resolved(raw, types), rules,
+            )
+        for emp_id, summary in summaries.items():
+            totals[emp_id] = totals.get(emp_id, 0) + summary.balance_minutes
+    return totals
 
 
 def _resolved(raw: dict, types: dict) -> dict:
@@ -171,7 +195,7 @@ def _write_title(ws: Worksheet, year: int, month: int, norm, ward: str, n_days: 
     ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=min(total_cols, 12))
 
 
-def _write_headers(ws: Worksheet, row: int, days: list[dt.date], multi: bool = False,
+def _write_headers(ws: Worksheet, row: int, days: list[dt.date], floors,
                    has_sick: bool = False) -> None:
     ws.cell(row=row, column=1, value="Nazwisko i imię")
     ws.cell(row=row, column=2, value="Etat")
@@ -195,11 +219,12 @@ def _write_headers(ws: Worksheet, row: int, days: list[dt.date], multi: bool = F
             c.comment = _comment(name)
 
     start = 3 + len(days)
-    for i, (key, label, _) in enumerate(_headers(multi, has_sick)):
+    for i, (key, label, _) in enumerate(_headers(floors, has_sick)):
         c = ws.cell(row=row, column=start + i, value=label)
         c.font = Font(bold=True, size=9)
         c.fill = PatternFill(
-            "solid", fgColor="DCE6F1" if key in ("wymiar", "bilans") else "E5E7EB"
+            "solid",
+            fgColor="DCE6F1" if key in ("wymiar", "bilans", "kwartal") else "E5E7EB"
         )
         c.alignment = CENTER_WRAP
         c.border = BORDER
@@ -212,36 +237,37 @@ def _comment(text: str):
     return c
 
 
-def _summary_values(month, main, cover) -> dict[str, str]:
+def _summary_values(month, per_floor, quarter_minutes) -> dict[str, str]:
     """Te same liczby, które widać na ekranie."""
     if month is None:
         return {}
-    return {
+    values = {
         "wymiar": month.norm_hhmm,
-        "glowne": fmt_days_hours(main.shift_days, main.worked_minutes) if main else "",
-        "zastepcze": fmt_days_hours(cover.shift_days, cover.worked_minutes)
-                     if cover else "",
+        "dyzury": fmt_days_hours(month.shift_days, month.worked_minutes),
         "bilans": month.balance_hhmm,
+        "kwartal": fmt_signed(quarter_minutes),
         "dzien": fmt_days_hours(month.day_shifts, month.day_minutes),
         "noc": fmt_days_hours(month.night_shifts, month.night_shift_minutes),
         "swieta": fmt_days_hours(month.holidays_worked, month.holiday_minutes),
         "urlop": fmt_days_hours(month.leave_days, month.leave_minutes),
         "l4": fmt_days_hours(month.sick_days, month.sick_minutes),
     }
+    for floor_id, summary in per_floor.items():
+        values[f"pietro_{floor_id}"] = (
+            fmt_days_hours(summary.shift_days, summary.worked_minutes)
+            if summary else ""
+        )
+    return values
 
 
 def _write_body(ws, first_row, days, employees, entries, summaries,
-                main_summaries=None, cover_summaries=None, multi=False,
-                floor_id=None, has_sick=False) -> int:
+                per_floor=None, quarter=None, floors=(), has_sick=False) -> int:
     row = first_row
     for emp in employees:
         name = f"{emp['last_name']} {emp['first_name']}".strip()
-        cover = multi and emp["floor_id"] != floor_id
-        if cover:
-            name += "  (zastępstwo)"
         c = ws.cell(row=row, column=1, value=name)
         c.alignment = LEFT
-        c.font = Font(size=10, italic=cover, color="8C4A00" if cover else "000000")
+        c.font = Font(size=10)
         c.border = BORDER
 
         fte = "1/1" if emp["fte_num"] == emp["fte_den"] else f"{emp['fte_num']}/{emp['fte_den']}"
@@ -267,28 +293,29 @@ def _write_body(ws, first_row, days, employees, entries, summaries,
                 if fill:
                     cell.fill = PatternFill("solid", fgColor=fill)
 
-        values = _summary_values(
-            summaries.get(emp["id"]),
-            (main_summaries or {}).get(emp["id"]),
-            (cover_summaries or {}).get(emp["id"]),
-        )
         month = summaries.get(emp["id"])
+        values = _summary_values(
+            month,
+            {fid: sums.get(emp["id"]) for fid, sums in (per_floor or {}).items()},
+            (quarter or {}).get(emp["id"], 0),
+        )
         start = 3 + len(days)
-        for i, (key, _, _) in enumerate(_headers(multi, has_sick)):
+        for i, (key, _, _) in enumerate(_headers(floors, has_sick)):
             cell = ws.cell(row=row, column=start + i, value=values.get(key) or None)
             cell.alignment = CENTER
             cell.border = BORDER
-            summary_col = key in ("wymiar", "bilans")
+            summary_col = key in ("wymiar", "bilans", "kwartal")
             cell.fill = PatternFill(
                 "solid", fgColor="EFF3F8" if summary_col else "F7F8FA"
             )
             colour = "000000"
             if key == "bilans" and month:
-                colour = "B45309" if month.balance_minutes > 0 else (
-                    "B00020" if month.balance_minutes < 0 else "15803D")
-            elif key == "zastepcze":
-                colour = "8C4A00"
-            cell.font = Font(size=9, bold=key == "bilans", color=colour)
+                colour = _balance_colour(month.balance_minutes)
+            elif key == "kwartal":
+                colour = _balance_colour((quarter or {}).get(emp["id"], 0))
+            cell.font = Font(
+                size=9, bold=key in ("bilans", "kwartal"), color=colour
+            )
         row += 1
     return row - 1
 
@@ -331,14 +358,23 @@ def _write_legend(ws: Worksheet, row: int, shift_types: list[ShiftType],
     ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=16)
 
 
+def _balance_colour(minutes: int) -> str:
+    """Ujemny bilans czerwony, dodatni zielony, wyrównany czarny."""
+    if minutes < 0:
+        return "B00020"
+    if minutes > 0:
+        return "15803D"
+    return "000000"
+
+
 def _apply_layout(ws: Worksheet, days, header_row: int, last_row: int,
-                  multi: bool = False, has_sick: bool = False) -> None:
+                  floors=(), has_sick: bool = False) -> None:
     ws.column_dimensions["A"].width = 26
     ws.column_dimensions["B"].width = 6
     for i in range(len(days)):
         ws.column_dimensions[get_column_letter(3 + i)].width = 4.6
     start = 3 + len(days)
-    for i, (_, _, width) in enumerate(_headers(multi, has_sick)):
+    for i, (_, _, width) in enumerate(_headers(floors, has_sick)):
         ws.column_dimensions[get_column_letter(start + i)].width = width
 
     ws.row_dimensions[header_row].height = 30

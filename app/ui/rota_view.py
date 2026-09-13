@@ -6,8 +6,7 @@ import datetime as dt
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction, QFont, QKeySequence
 from PySide6.QtWidgets import (
-    QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout,
-    QHeaderView, QLabel, QListWidget, QListWidgetItem, QMenu, QMessageBox,
+    QAbstractItemView, QComboBox, QHBoxLayout, QHeaderView, QLabel, QMenu,
     QPushButton, QSpinBox, QTableView, QToolButton, QVBoxLayout, QWidget,
 )
 
@@ -20,51 +19,9 @@ from app.ui.rota_model import RotaModel
 DAY_COL_MIN = 26
 DAY_COL_MAX = 44
 SUMMARY_COL_WIDTH = 82
-NARROW_SUMMARY = {"wymiar", "bilans"}
+NARROW_SUMMARY = {"wymiar", "bilans", "kwartal"}
 NARROW_COL_WIDTH = 64
 NAME_COL_WIDTH = 186
-
-
-class CoverPickerDialog(QDialog):
-    """Wybór osób z innych pięter do wpisania na zastępstwo."""
-
-    def __init__(self, db, candidates, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Dodaj zastępstwo")
-        self.setMinimumWidth(420)
-        self._candidates = candidates
-
-        self.list = QListWidget()
-        self.list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        for emp in candidates:
-            name = f"{emp['last_name']} {emp['first_name']}".strip()
-            floor = db.floor_name(emp["floor_id"]) or "bez piętra"
-            item = QListWidgetItem(f"{name} — {floor}")
-            item.setData(Qt.ItemDataRole.UserRole, emp["id"])
-            self.list.addItem(item)
-
-        hint = QLabel(
-            "Wybrane osoby pojawią się w grafiku tego piętra. Wpisany im dyżur "
-            "liczy się do ich własnego miesięcznego wymiaru czasu pracy."
-        )
-        hint.setWordWrap(True)
-        hint.setStyleSheet("color:#555;")
-
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Dodaj")
-        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Anuluj")
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-
-        layout = QVBoxLayout(self)
-        layout.addWidget(self.list)
-        layout.addWidget(hint)
-        layout.addWidget(buttons)
-
-    def selected_ids(self) -> list[int]:
-        return [i.data(Qt.ItemDataRole.UserRole) for i in self.list.selectedItems()]
 
 
 class RotaView(QWidget):
@@ -171,13 +128,6 @@ class RotaView(QWidget):
         self.cmb_floor = QComboBox()
         self.cmb_floor.setToolTip("Piętro, którego grafik jest wyświetlany")
 
-        self.btn_cover = QPushButton("Dodaj zastępstwo…")
-        self.btn_cover.setToolTip(
-            "Dopisz do tego grafiku osobę z innego piętra, aby wpisać jej dyżur"
-        )
-        self.btn_cover.clicked.connect(self._add_cover)
-
-        # Dopiero teraz — wypełnienie listy pięter ustawia widoczność obu kontrolek.
         self._reload_floors()
         self.cmb_floor.currentIndexChanged.connect(self._on_floor_changed)
 
@@ -189,7 +139,6 @@ class RotaView(QWidget):
         bar.addSpacing(16)
         bar.addWidget(QLabel("Piętro:"))
         bar.addWidget(self.cmb_floor)
-        bar.addWidget(self.btn_cover)
         bar.addSpacing(16)
 
         self.lbl_norm = QLabel()
@@ -309,9 +258,7 @@ class RotaView(QWidget):
             if index >= 0:
                 self.cmb_floor.setCurrentIndex(index)
         self.cmb_floor.blockSignals(False)
-        multi = len(floors) > 1
-        self.cmb_floor.setVisible(multi)
-        self.btn_cover.setVisible(multi)
+        self.cmb_floor.setVisible(len(floors) > 1)
 
     def _on_floor_changed(self) -> None:
         floor_id = self.cmb_floor.currentData()
@@ -319,27 +266,6 @@ class RotaView(QWidget):
             return
         self.floor_id = floor_id
         self.model.set_floor(floor_id)
-        self._resize_columns()
-        self._refresh_footer()
-
-    def _add_cover(self) -> None:
-        """Dopisuje do grafiku osobę z innego piętra."""
-        shown = {e["id"] for e in self.model.employees}
-        candidates = [
-            e for e in self.db.employees()
-            if e["id"] not in shown and e["floor_id"] != self.floor_id
-        ]
-        if not candidates:
-            QMessageBox.information(
-                self, "Zastępstwo",
-                "Wszyscy pracownicy z pozostałych pięter są już w tym grafiku.",
-            )
-            return
-        dialog = CoverPickerDialog(self.db, candidates, self)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-        for emp_id in dialog.selected_ids():
-            self.model.add_cover_employee(emp_id)
         self._resize_columns()
         self._refresh_footer()
 
@@ -410,15 +336,8 @@ class RotaView(QWidget):
             f" &nbsp; <span style='color:#B00020;font-weight:600'>"
             f"⚠ nierozpoznane wpisy: {unknown}</span>" if unknown else ""
         )
-        covers = sum(
-            1 for r in range(len(self.model.employees)) if self.model.is_cover_row(r)
-        )
-        cover_txt = (
-            f" &nbsp;•&nbsp; <span style='color:#8C4A00'>na zastępstwie: "
-            f"<b>{covers}</b></span>" if covers else ""
-        )
         self.footer.setText(
-            f"<span style='color:#444'>Pracowników w grafiku: <b>{staff}</b>{cover_txt} &nbsp;•&nbsp; "
+            f"<span style='color:#444'>Pracowników w grafiku: <b>{staff}</b> &nbsp;•&nbsp; "
             f"łącznie godzin: <b>{fmt_minutes(total)}</b> &nbsp;•&nbsp; "
             f"święta: {hol_txt}</span>{coverage_txt}{warn}"
         )

@@ -26,7 +26,6 @@ pracowników ani dyżurów. Kolejność działań jest następująca:</p>
 <li>Przejdź na zakładkę <b>Pracownicy</b> i dodaj zespół przyciskiem
     <b>Dodaj</b>. Przy osobach zatrudnionych na część etatu wybierz właściwy
     wymiar — program uwzględni go przy liczeniu godzin.</li>
-<li>Jeśli oddział ma dwa piętra, przypisz każdą osobę do właściwego piętra.</li>
 <li>Wejdź w <b>Narzędzia → Ustawienia</b> i wpisz nazwę oddziału. Pojawi się
     ona na wydruku.</li>
 <li>Zajrzyj na zakładkę <b>Zasady</b> i sprawdź, czy pora nocna oraz norma
@@ -151,26 +150,17 @@ lepszej widoczności — dyżury w te dni planuje się normalnie.</p>
 </table>
 
 <h3>Wiersze</h3>
-<p>Nazwisko wypisane <b>pomarańczową kursywą ze strzałką ↻</b> oznacza osobę
-z innego piętra, wpisaną tu na zastępstwo.</p>
+<p>Wszyscy pracownicy widoczni są na obu piętrach — wiersz bez żadnego wpisu
+znaczy po prostu, że ta osoba nie ma w tym miesiącu dyżuru na tym piętrze.</p>
 """),
 
-("pietra", "Dwa piętra i zastępstwa", """
-<h2>Dwa piętra i zastępstwa</h2>
-<p>Każde piętro ma <b>własny grafik i własny skład</b>. Przełączasz je listą
-<b>Piętro</b> nad tabelą. Pracownika przypisujesz do piętra na zakładce
-<b>Pracownicy</b>.</p>
-<p>Jeśli oddział ma tylko jedno piętro, lista w ogóle się nie pokazuje,
-a kolumny opisane niżej znikają.</p>
-
-<h3>Wpisanie zastępstwa</h3>
-<ol>
-<li>Przejdź na grafik tego piętra, na którym dyżur ma się odbyć.</li>
-<li>Kliknij <b>Dodaj zastępstwo…</b> i wybierz osobę z listy. Możesz zaznaczyć
-    kilka osób naraz.</li>
-<li>Wpisz jej dyżur tak samo jak wszystkim pozostałym.</li>
-</ol>
-<p>Osoba pojawi się w grafiku pomarańczową kursywą, z nazwą swojego piętra.</p>
+("pietra", "Dwa piętra", """
+<h2>Dwa piętra</h2>
+<p>Każde piętro ma <b>własny grafik</b>, ale <b>zespół jest wspólny</b>.
+Wszyscy pracownicy widoczni są na obu piętrach, bo na oddziale ludzie rotują
+między nimi swobodnie. Piętra przełączasz listą <b>Piętro</b> nad tabelą.</p>
+<p>Nie trzeba nikogo nigdzie przypisywać ani dopisywać. Wpisujesz dyżur w tym
+grafiku, w którym osoba danego dnia pracuje — i tyle.</p>
 
 <h3>Zabezpieczenie przed podwójnym dyżurem</h3>
 <p>Jeżeli ktoś ma danego dnia dyżur na <b>drugim</b> piętrze, jego komórka
@@ -184,18 +174,15 @@ piętro — jedna osoba ma jeden dyżur dziennie.</p>
 <p>Usunięcie zawartości komórki kasuje dyżur <b>tylko z oglądanego piętra</b>.
 Dyżur na drugim piętrze zostaje nietknięty.</p>
 
-<h3>Godziny osoby pracującej na dwóch piętrach</h3>
-<p>Kolumna <b>Dyż. gł.</b> pokazuje dyżury na macierzystym piętrze pracownika,
-a <b>Dyż. zast.</b> — te odbyte na innym piętrze. Podział zależy od osoby,
-a nie od tego, który grafik masz otwarty, więc na obu piętrach widać te same
-liczby. Razem dają wszystkie dyżury w miesiącu.</p>
-<p><b>Wymiar</b> i <b>Bilans</b> obejmują cały miesiąc niezależnie od piętra —
-pracownik ma jedną umowę i jeden wymiar czasu pracy. Pełny opis wszystkich
-kolumn znajdziesz w rozdziale <b>Podsumowanie godzin</b>.</p>
+<h3>Godziny osoby pracującej na obu piętrach</h3>
+<p>Podsumowanie ma osobną kolumnę dla każdego piętra — widać w niej, ile
+dyżurów przypadło na które. <b>Wymiar</b>, <b>Bilans</b> i <b>Kwartał</b>
+obejmują cały miesiąc niezależnie od piętra, bo pracownik ma jedną umowę
+i jeden wymiar czasu pracy.</p>
 
 <h3>Nazwy pięter</h3>
 <p>Zmienisz je w <b>Narzędzia → Ustawienia</b>. Tam też dodasz trzecie piętro,
-gdyby było potrzebne.</p>
+gdyby było potrzebne — w podsumowaniu pojawi się dla niego kolejna kolumna.</p>
 """),
 
 ("podsumowanie", "Podsumowanie godzin", """
@@ -208,10 +195,12 @@ w grafiku. Większość podaje <b>liczbę dni i łączny czas</b> w postaci
 <tr><th>Kolumna</th><th>Co pokazuje</th></tr>
 <tr><td><b>Wymiar</b></td><td>ile godzin przypada do przepracowania w tym
     miesiącu, po uwzględnieniu etatu, świąt, urlopów i zwolnień</td></tr>
-<tr><td><b>Dyż. gł.</b></td><td>dyżury na własnym piętrze pracownika</td></tr>
-<tr><td><b>Dyż. zast.</b></td><td>dyżury na innym piętrze, czyli zastępstwa</td></tr>
-<tr><td><b>Bilans</b></td><td>nadgodziny na pomarańczowo, niedogodziny na
-    czerwono, równo na zielono</td></tr>
+<tr><td>nazwa piętra</td><td>dyżury na tym piętrze — jedna kolumna na każde
+    piętro; przy jednym piętrze zostaje kolumna <b>Dyżury</b></td></tr>
+<tr><td><b>Bilans</b></td><td>nadgodziny albo brakujące godziny w tym
+    miesiącu</td></tr>
+<tr><td><b>Kwartał</b></td><td>to samo, ale narastająco od początku
+    kwartału</td></tr>
 <tr><td><b>Dzień</b></td><td>dyżury dzienne</td></tr>
 <tr><td><b>Noc</b></td><td>dyżury nocne, czyli sięgające pory nocnej</td></tr>
 <tr><td><b>Święta</b></td><td>dyżury w święta ustawowo wolne od pracy</td></tr>
@@ -220,13 +209,30 @@ w grafiku. Większość podaje <b>liczbę dni i łączny czas</b> w postaci
     wtedy, gdy w danym miesiącu jest jakiś taki wpis</td></tr>
 </table>
 
-<h3>Dyżury własne i zastępcze</h3>
-<p>Podział zależy od <b>pracownika</b>, a nie od tego, który grafik masz
-otwarty. Dyżur odbyty na macierzystym piętrze liczy się jako własny, każdy inny
-jako zastępstwo — i wygląda tak samo niezależnie od oglądanego piętra.
-Razem dają wszystkie dyżury w miesiącu.</p>
-<p>Przy jednym piętrze podział nie ma sensu i zostaje jedna kolumna
-<b>Dyżury</b>.</p>
+<h3>Kolory bilansu</h3>
+<table>
+<tr><th>Kolor</th><th>Znaczenie</th></tr>
+<tr><td>czerwony</td><td>godzin brakuje do wymiaru</td></tr>
+<tr><td>zielony</td><td>nadgodziny</td></tr>
+<tr><td>czarny</td><td>dokładnie tyle, ile trzeba</td></tr>
+</table>
+<p>Dotyczy to zarówno kolumny <b>Bilans</b>, jak i <b>Kwartał</b>.</p>
+
+<h3>Bilans kwartalny</h3>
+<p>Nadgodziny rozliczają się w okresie kwartalnym, więc pojedynczy miesiąc
+nie musi wychodzić na zero — liczy się suma z całego kwartału. Kolumna
+<b>Kwartał</b> pokazuje tę sumę narastająco.</p>
+<p>Kwartały są kalendarzowe: styczeń–marzec, kwiecień–czerwiec,
+lipiec–wrzesień, październik–grudzień.</p>
+<p>Liczone są tylko te miesiące kwartału, które mają <b>już ułożony
+grafik</b>, oraz zawsze ten oglądany. Pusty miesiąc z przyszłości jest
+pomijany — inaczej jego cały wymiar wyglądałby jak kilkadziesiąt brakujących
+godzin. Najedź myszką na kolumnę, aby zobaczyć, które miesiące zostały
+policzone.</p>
+
+<h3>Dyżury na piętrach</h3>
+<p>Każde piętro ma własną kolumnę, więc od razu widać rozkład dyżurów danej
+osoby. Suma kolumn pięter to wszystkie jej dyżury w miesiącu.</p>
 
 <h3>Dzień i noc</h3>
 <p>Dyżur uznawany jest za nocny, jeżeli sięga pory nocnej ustawionej na

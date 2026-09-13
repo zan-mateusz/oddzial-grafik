@@ -360,32 +360,22 @@ class Database:
         sql += " ORDER BY sort_order, last_name, first_name"
         return list(self.conn.execute(sql, params).fetchall())
 
-    def employees_for_month(
-        self, year: int, month: int, floor_id: int | None = None
-    ) -> list[sqlite3.Row]:
+    def employees_for_month(self, year: int, month: int) -> list[sqlite3.Row]:
         """Pracownicy widoczni w grafiku danego miesiąca.
 
-        Zachowuje historię — dawne grafiki nadal pokazują osoby, które już nie
-        pracują. Przy wskazanym piętrze dochodzą osoby z innych pięter, które
-        mają tu dyżur (zastępstwo).
+        Skład jest wspólny dla wszystkich pięter — na oddziale ludzie rotują
+        między nimi swobodnie, więc każde piętro pokazuje ten sam zespół.
+        Zachowana jest historia: dawne grafiki nadal zawierają osoby, które
+        już nie pracują.
         """
         first, last_s = self._month_bounds(year, month)
-        base = (
+        return list(self.conn.execute(
+            "SELECT * FROM employees WHERE "
             "(hired_on IS NULL OR hired_on <= ?) AND (ended_on IS NULL OR ended_on >= ?) "
             "AND (active=1 OR id IN (SELECT employee_id FROM entries "
-            "WHERE day BETWEEN ? AND ?))"
-        )
-        params = [last_s, first, first, last_s]
-        if floor_id is not None:
-            base += (
-                " AND (floor_id=? OR id IN (SELECT employee_id FROM entries "
-                "WHERE day BETWEEN ? AND ? AND floor_id=?))"
-            )
-            params += [floor_id, first, last_s, floor_id]
-        return list(self.conn.execute(
-            f"SELECT * FROM employees WHERE {base} "
+            "WHERE day BETWEEN ? AND ?)) "
             "ORDER BY sort_order, last_name, first_name",
-            params,
+            (last_s, first, first, last_s),
         ).fetchall())
 
     def _month_bounds(self, year: int, month: int) -> tuple[str, str]:
@@ -499,11 +489,10 @@ class Database:
                     )
                 continue
             if floor_id is None:
-                # Domyślnie dyżur odbywa się na macierzystym piętrze pracownika.
-                row = self.conn.execute(
-                    "SELECT floor_id FROM employees WHERE id=?", (emp_id,)
-                ).fetchone()
-                floor_id = row["floor_id"] if row else None
+                # Brak wskazania piętra zdarza się tylko przy imporcie danych
+                # sprzed podziału — wtedy trafiają na pierwsze piętro.
+                floors = self.floors()
+                floor_id = floors[0]["id"] if floors else None
             self.conn.execute(
                 "INSERT INTO entries(employee_id, day, raw, floor_id) VALUES(?,?,?,?) "
                 "ON CONFLICT(employee_id, day) DO UPDATE SET "
@@ -521,6 +510,16 @@ class Database:
             params.append(floor_id)
         self.conn.execute(sql, params)
         self.conn.commit()
+
+    def floor_entry_counts(self, year: int, month: int) -> dict[int | None, int]:
+        """Ile dyżurów przypada na każde piętro w danym miesiącu."""
+        first, last = self._month_bounds(year, month)
+        rows = self.conn.execute(
+            "SELECT floor_id, COUNT(*) AS n FROM entries "
+            "WHERE day BETWEEN ? AND ? GROUP BY floor_id",
+            (first, last),
+        ).fetchall()
+        return {r["floor_id"]: r["n"] for r in rows}
 
     def data_summary(self) -> dict:
         """Ile czego jest w bazie — do pokazania przed skasowaniem."""

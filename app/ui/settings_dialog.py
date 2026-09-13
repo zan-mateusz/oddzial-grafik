@@ -91,9 +91,9 @@ class SettingsDialog(QDialog):
         buttons.addStretch(1)
 
         note = QLabel(
-            "Każde piętro ma własny grafik i własny skład. Pracownik z jednego "
-            "piętra może mieć wpisany dyżur na drugim — to zastępstwo, a jego "
-            "godziny i tak liczą się do jego miesięcznego wymiaru."
+            "Każde piętro ma własny grafik, ale zespół jest wspólny — ta sama "
+            "osoba może mieć dyżury na obu piętrach. Godziny sumują się do "
+            "jednego miesięcznego wymiaru."
         )
         note.setWordWrap(True)
         note.setStyleSheet("color:#555;")
@@ -141,12 +141,14 @@ class SettingsDialog(QDialog):
                 self, "Piętra", "Musi zostać przynajmniej jedno piętro."
             )
             return
-        staff = len(self.db.employees(include_inactive=True, floor_id=floor_id))
+        shifts = self.db.conn.execute(
+            "SELECT COUNT(*) AS n FROM entries WHERE floor_id=?", (floor_id,)
+        ).fetchone()["n"]
         answer = QMessageBox.warning(
             self, "Usunięcie piętra",
             f"Usunąć piętro „{name}”?\n\n"
-            f"Przypisanych pracowników: {staff}. Ich dane i dyżury zostaną "
-            "zachowane, ale trzeba będzie przypisać ich do innego piętra.",
+            f"Zapisanych na nim dyżurów: {shifts}. Wpisy zostaną zachowane, "
+            "ale przestaną być przypisane do jakiegokolwiek piętra.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel,
         )

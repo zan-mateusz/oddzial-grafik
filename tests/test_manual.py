@@ -81,8 +81,8 @@ def test_manual_covers_the_important_topics():
     """
     page = full_html().lower()
     for stem in [
-        "pora nocna", "urlop", "zastępstw", "kopi", "nadgodzin", "wymiar",
-        "eksport", "import", "święt", "etat", "f1", "piętr", "l4",
+        "pora nocna", "urlop", "kopi", "nadgodzin", "wymiar", "kwartal",
+        "eksport", "import", "święt", "etat", "f1", "piętr", "l4", "bilans",
     ]:
         assert stem in page, f"brak wzmianki o: {stem}"
 
@@ -123,11 +123,13 @@ def test_export_regenerates_the_repository_copies(tmp_path, monkeypatch):
 # --- zgodność instrukcji z programem ---------------------------------------
 
 def _live_column_labels() -> set[str]:
+    """Nagłówki kolumn stałych. Kolumny pięter noszą nazwy nadane przez
+    użytkownika, więc instrukcja nie może ich wymieniać z nazwy."""
     from app.ui import rota_model as rm
 
     return {
         c[1] for c in (
-            rm.COL_NORM, rm.COL_MAIN, rm.COL_COVER, rm.COL_ALL, rm.COL_BALANCE,
+            rm.COL_NORM, rm.COL_ALL, rm.COL_BALANCE, rm.COL_QUARTER,
             rm.COL_DAY, rm.COL_NIGHT, rm.COL_HOLIDAY, rm.COL_LEAVE, rm.COL_SICK,
         )
     }
@@ -136,7 +138,7 @@ def _live_column_labels() -> set[str]:
 def test_manual_does_not_mention_retired_columns():
     """Nazwy kolumn zmieniały się już raz i instrukcja została w tyle."""
     page = full_html()
-    for retired in ("Godz. tu", "Dyż. tu"):
+    for retired in ("Godz. tu", "Dyż. tu", "Dyż. gł.", "Dyż. zast."):
         assert retired not in page, f"instrukcja nadal opisuje kolumnę {retired}"
 
 

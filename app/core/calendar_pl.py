@@ -90,6 +90,24 @@ def month_days(year: int, month: int) -> list[dt.date]:
     return [first + dt.timedelta(days=i) for i in range((nxt - first).days)]
 
 
+def quarter_of(month: int) -> int:
+    """Numer kwartału (1-4) dla podanego miesiąca."""
+    return (month - 1) // 3 + 1
+
+
+def quarter_months(year: int, month: int) -> list[tuple[int, int]]:
+    """Wszystkie miesiące kwartału, do którego należy podany miesiąc.
+
+    Okres rozliczeniowy w ochronie zdrowia bywa kwartalny, więc nadgodziny
+    bilansują się w obrębie tych trzech miesięcy, a nie każdego z osobna.
+    """
+    first = (quarter_of(month) - 1) * 3 + 1
+    return [(year, first + i) for i in range(3)]
+
+
+PL_QUARTER_NAMES = ["I kwartał", "II kwartał", "III kwartał", "IV kwartał"]
+
+
 @dataclass(frozen=True)
 class MonthNorm:
     """Wymiar czasu pracy w miesiącu (norma umowna, nie grafik)."""

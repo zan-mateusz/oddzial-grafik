@@ -32,32 +32,33 @@ def test_new_database_has_two_floors(db):
     assert [f["name"] for f in db.floors()] == ["I piętro", "II piętro"]
 
 
-def test_employees_are_listed_per_floor(ward):
+def test_the_team_is_shared_by_every_floor(ward):
+    """Zespół rotuje między piętrami, więc każde pokazuje ten sam skład."""
     db, f1, f2, anna, maria = ward
-    assert [e["id"] for e in db.employees(floor_id=f1)] == [anna]
-    assert [e["id"] for e in db.employees(floor_id=f2)] == [maria]
+    everyone = {e["id"] for e in db.employees_for_month(2026, 6)}
+    assert everyone == {anna, maria}
 
 
-def test_shift_defaults_to_the_employees_own_floor(ward):
+def test_shift_without_a_floor_lands_on_the_first_one(ward):
+    """Zdarza się przy danych sprzed podziału na piętra."""
     db, f1, f2, anna, _ = ward
     db.set_entry(anna, dt.date(2026, 6, 1), "D")
     assert db.month_entries(2026, 6, f1) == {(anna, dt.date(2026, 6, 1)): "D"}
     assert db.month_entries(2026, 6, f2) == {}
 
 
-def test_cover_shift_appears_on_the_other_floor(ward):
+def test_a_shift_is_recorded_on_the_floor_it_was_worked(ward):
     db, f1, f2, anna, _ = ward
     db.set_entry(anna, dt.date(2026, 6, 2), "N", f2)
     assert db.month_entries(2026, 6, f1) == {}
     assert db.month_entries(2026, 6, f2) == {(anna, dt.date(2026, 6, 2)): "N"}
-    # Anna pojawia się w składzie drugiego piętra mimo innego piętra macierzystego.
-    assert anna in [e["id"] for e in db.employees_for_month(2026, 6, f2)]
 
 
-def test_covering_nurse_is_not_lost_from_her_own_floor(ward):
+def test_everyone_stays_visible_on_both_floors(ward):
     db, f1, f2, anna, _ = ward
     db.set_entry(anna, dt.date(2026, 6, 2), "N", f2)
-    assert anna in [e["id"] for e in db.employees_for_month(2026, 6, f1)]
+    visible = {e["id"] for e in db.employees_for_month(2026, 6)}
+    assert anna in visible
 
 
 def test_hours_count_towards_the_month_regardless_of_floor(ward):
@@ -69,7 +70,7 @@ def test_hours_count_towards_the_month_regardless_of_floor(ward):
 
     types = db.shift_types_by_code()
     everything = {k: resolve(v, types) for k, v in db.month_entries(2026, 6).items()}
-    employees = db.employees_for_month(2026, 6, f1)
+    employees = db.employees_for_month(2026, 6)
     total = summarize_month(2026, 6, employees, everything)[anna]
     assert total.shift_days == 8
     assert total.worked_minutes == 8 * 720
@@ -202,3 +203,36 @@ def test_importing_one_floor_keeps_the_other_floors_shifts(ward):
     xi.apply_import(db, 2026, 6, rows, replace=False, floor_id=f2)
     assert db.month_entries(2026, 6, f1) == {(anna, dt.date(2026, 6, 10)): "D"}
     assert db.month_entries(2026, 6, f2) == {(anna, dt.date(2026, 6, 12)): "N"}
+
+
+def test_floor_columns_count_shifts_where_they_happened(ward):
+    """Nie ma piętra macierzystego — liczy się miejsce odbycia dyżuru."""
+    import os
+
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
+
+    QApplication.instance() or QApplication([])
+    from app.ui.rota_model import RotaModel
+
+    db, f1, f2, anna, _ = ward
+    db.set_entry(anna, dt.date(2026, 6, 1), "D", f1)
+    db.set_entry(anna, dt.date(2026, 6, 2), "D", f1)
+    db.set_entry(anna, dt.date(2026, 6, 3), "N", f2)
+
+    model = RotaModel(db, 2026, 6, f1)
+    values = model._summary_values(anna)
+    assert values[f"pietro_{f1}"] == "2 (24:00)"
+    assert values[f"pietro_{f2}"] == "1 (12:00)"
+
+    # Widok drugiego piętra pokazuje dokładnie te same liczby.
+    model.set_floor(f2)
+    assert model._summary_values(anna)[f"pietro_{f1}"] == "2 (24:00)"
+
+
+def test_an_employee_without_any_shift_still_appears_on_both_floors(ward):
+    db, f1, f2, anna, maria = ward
+    db.set_entry(anna, dt.date(2026, 6, 1), "D", f1)
+    for floor in (f1, f2):
+        visible = {e["id"] for e in db.employees_for_month(2026, 6)}
+        assert maria in visible, floor
